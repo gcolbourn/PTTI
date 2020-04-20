@@ -1,0 +1,3 @@
+compyrtment == 0.5.1
+jupyter
+numba
