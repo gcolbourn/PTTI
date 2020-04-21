@@ -24,7 +24,7 @@
 %var: 'beta'    'R0'*'mu' // infection rate
 
 %var: 'ifr'   0.025    // infection fatality rate
-%var: 'theta' 0.01     // testing rate of infected people
+//%var: 'theta' 100/N    // testing rate of infected people
 %var: 'acc'   0.8      // testing accuracy
 %var: 'ctr'   2        // contact tracing rate i.e. 2 days
 
@@ -65,17 +65,17 @@
 /////////////////
 // Observables //
 /////////////////
-%obs: 'S'  |S(m{f})| // Susceptible and free
-%obs: 'E'  |E(m{f})| // Exposed and free
-%obs: 'I'  |I(m{f})| // Infectious and free
-%obs: 'R'  |R(m{f})| // Recovered and free
-%obs: 'QS' |S(m{q})| // Susceptible and quarantined
-%obs: 'QE' |E(m{q})| // Exposed and quarantined
-%obs: 'QI' |I(m{q})| // Infectious and quarantined
-%obs: 'QR' |R(m{q})| // Recovered and quarantined
-%obs: 'Tp' |I(t{p})| // Infectious and positively tested
-%obs: 'Tn' |I(t{n})| // Infectious and negatively tested
-%obs: 'F'  |F()|
+%obs: 'S'  |S(m{f})|/N     // Susceptible and free
+%obs: 'E'  |E(m{f})|/N     // Exposed and free
+%obs: 'I'  |I(m{f})|/N     // Infectious and free
+%obs: 'R'  |R(m{f})|/N     // Recovered and free
+%obs: 'QS' |S(m{q})|/N     // Susceptible and quarantined
+%obs: 'QE' |E(m{q})|/N     // Exposed and quarantined
+%obs: 'QI' |I(m{q})|/N     // Infectious and quarantined
+%obs: 'QR' |R(m{q})|/N     // Recovered and quarantined
+%obs: 'Tp' |I(t{p})|/|I()| // Infectious and positively tested
+%obs: 'Tn' |I(t{n})|/|I()| // Infectious and negatively tested
+%obs: 'F'  |F()|/N
 
 ////////////////////
 // Initialisation //
