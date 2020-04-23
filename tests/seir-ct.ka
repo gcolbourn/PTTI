@@ -45,6 +45,11 @@
 'recovery_critical'            P(s{i}, p{sc})    -> P(s{r}, p{sc}) @ gamma_s * (1 - cfr)
 'fatality'                     P(s{i}, p{sc}), . -> ., C()         @ gamma_s * cfr
 
+///////////////////////////////////////////////////////
+// Clinical identification of paucisymptomatic cases //
+///////////////////////////////////////////////////////
+'clinic_sp' P(s{i}, p{sp}, d{u}) -> P(s{i}, p{sp}, d{d}) @ diagrate
+
 //////////////////////////////////////////////////////
 // Testing and immediate diagnosis of severe cases  //
 //////////////////////////////////////////////////////
