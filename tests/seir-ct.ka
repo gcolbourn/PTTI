@@ -3,11 +3,11 @@
 ///////////////////////////////////////////////
 
 // The internal states of the individual person agents:
-//  - s{s i r}             : infection state
-//  - p{e p a sp ss sc}    : disease progression - exposed, prodromic, asymptomatic, paucisymptomatic, severe, critical
+//  - s{s e i r}           : infection state
+//  - p{p a sp ss sc}      : disease progression - prodromic, asymptomatic, paucisymptomatic, severe, critical
 //  - m{f q}               : movement - free or quarantined
 //  - t{p n}               : tested - positive or negative
-%agent: P(s{s i r}, p{e p a sp ss sc}, m{f q}, t{p n})
+%agent: P(s{s e i r}, p{p a sp ss sc}, m{f q}, t{p n})
 
 // A corpse has no internal state
 %agent: C()
@@ -46,10 +46,15 @@
 //// RULES ////
 ///////////////
 
+///////////////////////////////////////
+// Exposure for freely-moving people //
+///////////////////////////////////////
+'exposure'  P(s{s}, m{f}), P(s{i}, m{f}) -> P(s{i}, m{f}), P(s{i}, m{f}) @ distance*beta/N
+
 ////////////////////////////////////////
 // Disease progression, post-exposure //
 ////////////////////////////////////////
-'progression_prodromic'        P(s{i}, p{e})     -> P(s{i}, p{p})  @ mu
+'progression_prodromic'        P(s{e}, p{#})     -> P(s{i}, p{p})  @ mu
 'progression_asymptomatic'     P(s{i}, p{p})     -> P(s{i}, p{a})  @ frac_a*nu
 'progression_paucisymptomatic' P(s{i}, p{p})     -> P(s{i}, p{sp}) @ frac_p*nu
 'progression_severe'           P(s{i}, p{p})     -> P(s{i}, p{ss}) @ frac_s*nu
@@ -60,11 +65,6 @@
 'recovery_severe'              P(s{i}, p{ss})    -> P(s{r}, p{ss}) @ gamma_s
 'recovery_critical'            P(s{i}, p{sc})    -> P(s{r}, p{sc}) @ gamma_s * (1 - cfr)
 'fatality'                     P(s{i}, p{sc}), . -> ., C()         @ gamma_s * cfr
-
-///////////////////////////////////////
-// Exposure for freely-moving people //
-///////////////////////////////////////
-'exposure'  P(s{s}, m{f}), P(s{i}, m{f}) -> P(s{i}, m{f}), P(s{i}, m{f}) @ distance*beta/N
 
 //////////////////////////////////////////////////////
 // Testing and immediate quarantine of severe cases //
@@ -82,8 +82,8 @@
 // susceptible and exposed individuals should generally test negative
 'test_s_tn'  P(s{s}, t{#})              -> P(s{s}, t{n})              @ ptestrate*tnr
 'test_s_fp'  P(s{s}, m{#}, t{#})        -> P(s{s}, m{q}, t{p})        @ ptestrate*(1-tnr)
-'test_e_tp'  P(s{i}, p{e}, t{#})        -> P(s{i}, p{e}, t{n})        @ ptestrate*tnr
-'test_e_fn'  P(s{i}, p{e}, m{#}, t{#})  -> P(s{i}, p{e}, m{q}, t{p})  @ ptestrate*(1-tnr)
+'test_e_tp'  P(s{e}, t{#})              -> P(s{e}, t{n})              @ ptestrate*tnr
+'test_e_fn'  P(s{e}, m{#}, t{#})        -> P(s{e}, m{q}, t{p})        @ ptestrate*(1-tnr)
 
 // prodromatic, asymptomatic and paucicymptomatic individuals should generally test positive
 'test_p_tp'  P(s{i}, p{p}, m{#}, t{#})  -> P(s{i}, p{p}, m{q}, t{p})  @ ptestrate*tpr
@@ -111,9 +111,9 @@
 //// Observables ////
 /////////////////////
 %obs: 'S'   |P(s{s})|        // Susceptible
+%obs: 'E'   |P(s{e})|        // Exposed
 %obs: 'I'   |P(s{i})|        // Infected
 %obs: 'R'   |P(s{r})|        // Recovered
-%obs: 'Ie'  |P(s{i}, p{e})|  // Exposed
 %obs: 'Ip'  |P(s{i}, p{p})|  // Prodromic
 %obs: 'Ia'  |P(s{i}, p{a})|  // Asymptomatic
 %obs: 'Isp' |P(s{i}, p{sp})| // Paucisymptomatic
@@ -128,8 +128,8 @@
 ////////////////////////
 //// Initialisation ////
 ////////////////////////
-%init: Init_S  P(s{s}, p{e}, m{f}, t{n})
-%init: Init_I  P(s{i}, p{e}, m{f}, t{n})
+%init: Init_S  P(s{s}, p{p}, m{f}, t{n})
+%init: Init_I  P(s{i}, p{p}, m{f}, t{n})
 
 ///////////////////////
 //// Perturbations ////
