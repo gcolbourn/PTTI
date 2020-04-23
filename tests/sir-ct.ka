@@ -8,8 +8,8 @@
 //  - m{f q}               : movement - free or quarantined
 //  - t{p n}               : tested - positive or negative
 %agent: P(s{s i r}, p{e p a sp ss sc}, m{f q}, t{p n})
-// A corpse has no internal state
 
+// A corpse has no internal state
 %agent: C()
 
 ///////////////////
