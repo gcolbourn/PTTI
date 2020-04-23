@@ -34,8 +34,8 @@
 %var: frac_c    0.05     // fraction that becomes critical
 %var: cfr       0.25     // critical fatality rate
 
-%var: qrate     1        // diagnose within a day
-%var: eqrate    1/14     // average quarantine two weeks
+%var: trate     1        // trace within a day
+%var: eqrate    1/14     // average isolation two weeks
 
 %var: testrate  1        // rate of testing for severe cases
 %var: ptestrate 1/30     // rate of testing for traced cases
@@ -99,8 +99,9 @@
 
 ///////////////////////////////////////////////////////
 // Trace individuals in proportion to positive tests //
+// n.b. tracing is a kind of presumptive diagnosis   //
 ///////////////////////////////////////////////////////
-'trace' P(d{u}), P(t{p}) -> P(d{d}), P(t{p}) @ qrate
+'trace' P(d{u}), P(t{p}) -> P(d{d}), P(t{p}) @ trate
 
 // Uninfeced individuals exit quarantine at a constant rate
 'exit_S'     P(s{s}, d{d})    -> P(s{s}, d{u})    @ eqrate
