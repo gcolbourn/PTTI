@@ -5,9 +5,9 @@
 // The internal states of the individual person agents:
 //  - s{s e i r}           : infection state
 //  - p{p a sp ss sc}      : disease progression - prodromic, asymptomatic, paucisymptomatic, severe, critical
-//  - m{f q}               : movement - free or quarantined
+//  - d{u d}               : diagnostic state - undiagnosed or diagnosed
 //  - t{p n}               : tested - positive or negative
-%agent: P(s{s e i r}, p{p a sp ss sc}, m{f q}, t{p n})
+%agent: P(s{s e i r}, p{p a sp ss sc}, d{u d}, t{p n})
 
 // A corpse has no internal state
 %agent: C()
@@ -34,7 +34,7 @@
 %var: frac_c    0.05     // fraction that becomes critical
 %var: cfr       0.25     // critical fatality rate
 
-%var: qrate     1        // quarantine within a day
+%var: qrate     1        // diagnose within a day
 %var: eqrate    1/14     // average quarantine two weeks
 
 %var: testrate  1        // rate of testing for severe cases
@@ -49,7 +49,7 @@
 ///////////////////////////////////////
 // Exposure for freely-moving people //
 ///////////////////////////////////////
-'exposure'  P(s{s}, m{f}), P(s{i}, m{f}) -> P(s{i}, m{f}), P(s{i}, m{f}) @ distance*beta/N
+'exposure'  P(s{s}, d{u}), P(s{i}, d{u}) -> P(s{i}, d{u}), P(s{i}, d{u}) @ distance*beta/N
 
 ////////////////////////////////////////
 // Disease progression, post-exposure //
@@ -67,45 +67,44 @@
 'fatality'                     P(s{i}, p{sc}), . -> ., C()         @ gamma_s * cfr
 
 //////////////////////////////////////////////////////
-// Testing and immediate quarantine of severe cases //
+// Testing and immediate diagnosis of severe cases  //
 //////////////////////////////////////////////////////
-'test_ss_tp' P(s{i}, p{ss}, m{#}, t{#}) -> P(s{i}, p{ss}, m{q}, t{p}) @ testrate*tpr
+'test_ss_tp' P(s{i}, p{ss}, d{#}, t{#}) -> P(s{i}, p{ss}, d{d}, t{p}) @ testrate*tpr
 'test_ss_fn' P(s{i}, p{ss}, t{#})       -> P(s{i}, p{ss}, t{n})       @ testrate*(1-tpr)
-'test_sc_tp' P(s{i}, p{sc}, m{#}, t{#}) -> P(s{i}, p{sc}, m{q}, t{p}) @ testrate*tpr
+'test_sc_tp' P(s{i}, p{sc}, d{#}, t{#}) -> P(s{i}, p{sc}, d{d}, t{p}) @ testrate*tpr
 'test_sc_fn' P(s{i}, p{sc}, t{#})       -> P(s{i}, p{sc}, t{n})       @ testrate*(1-tpr)
 
 ///////////////////////////////////////////////////
 // Testing in the general population.            //
-// Positive tests result in immediate quarantine //
+// Positive tests result in immediate diagnosis  //
 ///////////////////////////////////////////////////
 
 // susceptible and exposed individuals should generally test negative
 'test_s_tn'  P(s{s}, t{#})              -> P(s{s}, t{n})              @ ptestrate*tnr
-'test_s_fp'  P(s{s}, m{#}, t{#})        -> P(s{s}, m{q}, t{p})        @ ptestrate*(1-tnr)
+'test_s_fp'  P(s{s}, d{#}, t{#})        -> P(s{s}, d{d}, t{p})        @ ptestrate*(1-tnr)
 'test_e_tp'  P(s{e}, t{#})              -> P(s{e}, t{n})              @ ptestrate*tnr
-'test_e_fn'  P(s{e}, m{#}, t{#})        -> P(s{e}, m{q}, t{p})        @ ptestrate*(1-tnr)
+'test_e_fn'  P(s{e}, d{#}, t{#})        -> P(s{e}, d{d}, t{p})        @ ptestrate*(1-tnr)
 
 // prodromatic, asymptomatic and paucicymptomatic individuals should generally test positive
-'test_p_tp'  P(s{i}, p{p}, m{#}, t{#})  -> P(s{i}, p{p}, m{q}, t{p})  @ ptestrate*tpr
+'test_p_tp'  P(s{i}, p{p}, d{#}, t{#})  -> P(s{i}, p{p}, d{d}, t{p})  @ ptestrate*tpr
 'test_p_fn'  P(s{i}, p{p}, t{#})        -> P(s{i}, p{p}, t{n})        @ ptestrate*(1-tpr)
-'test_a_tp'  P(s{i}, p{a}, m{#}, t{#})  -> P(s{i}, p{a}, m{q}, t{p})  @ ptestrate*tpr
+'test_a_tp'  P(s{i}, p{a}, d{#}, t{#})  -> P(s{i}, p{a}, d{d}, t{p})  @ ptestrate*tpr
 'test_a_fn'  P(s{i}, p{a}, t{#})        -> P(s{i}, p{a}, t{n})        @ ptestrate*(1-tpr)
-'test_sp_tp' P(s{i}, p{sp}, m{#}, t{#}) -> P(s{i}, p{sp}, m{q}, t{p}) @ ptestrate*tpr
+'test_sp_tp' P(s{i}, p{sp}, d{#}, t{#}) -> P(s{i}, p{sp}, d{d}, t{p}) @ ptestrate*tpr
 'test_sp_fn' P(s{i}, p{sp}, t{#})       -> P(s{i}, p{sp}, t{n})       @ ptestrate*(1-tpr)
 
 // recovered individuals should generally test negative
 'test_r_tn'  P(s{r}, t{#})              -> P(s{r}, t{n})              @ ptestrate*tnr
 'test_r_fp'  P(s{r}, t{#})              -> P(s{r}, t{p})              @ ptestrate*(1-tnr)
 
-////////////////////////////////////////////////
-// Quarantine - quarantine traced individuals //
-// in proportion to positive tests            //
-////////////////////////////////////////////////
-'quarantine' P(m{f}), P(t{p}) -> P(m{q}), P(t{p}) @ qrate
+///////////////////////////////////////////////////////
+// Trace individuals in proportion to positive tests //
+///////////////////////////////////////////////////////
+'trace' P(d{u}), P(t{p}) -> P(d{d}), P(t{p}) @ qrate
 
 // Uninfeced individuals exit quarantine at a constant rate
-'exit_S'     P(s{s}, m{q})    -> P(s{s}, m{f})    @ eqrate
-'exit_R'     P(s{r}, m{q})    -> P(s{r}, m{f})    @ eqrate
+'exit_S'     P(s{s}, d{d})    -> P(s{s}, d{u})    @ eqrate
+'exit_R'     P(s{r}, d{d})    -> P(s{r}, d{u})    @ eqrate
 
 /////////////////////
 //// Observables ////
@@ -121,15 +120,15 @@
 %obs: 'Isc' |P(s{i}, p{sc})| // Critical
 %obs: 'Tp'  |P(t{p})|        // Positively tested
 %obs: 'Tn'  |P(t{n})|        // Negatively tested
-%obs: 'Q'   |P(m{q})|        // Quarantined
+%obs: 'D'   |P(d{d})|        // Diagnosed / Traced
 %obs: 'H'   |P(s{i}, p{ss})|+|P(s{i}, p{sc})| // Hospitalised
 %obs: 'F'   |C()|
 
 ////////////////////////
 //// Initialisation ////
 ////////////////////////
-%init: Init_S  P(s{s}, p{p}, m{f}, t{n})
-%init: Init_I  P(s{i}, p{p}, m{f}, t{n})
+%init: Init_S  P(s{s}, p{p}, d{u}, t{n})
+%init: Init_I  P(s{i}, p{p}, d{u}, t{n})
 
 ///////////////////////
 //// Perturbations ////
