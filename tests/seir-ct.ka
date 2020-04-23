@@ -7,7 +7,8 @@
 //  - p{p a sp ss sc}      : disease progression - prodromic, asymptomatic, paucisymptomatic, severe, critical
 //  - d{u d}               : diagnostic state - undiagnosed or diagnosed
 //  - t{p n}               : tested - positive or negative
-%agent: P(s{s e i r}, p{p a sp ss sc}, d{u d}, t{p n})
+//  - m{y n}               : mask wearing - yes or no
+%agent: P(s{s e i r}, p{p a sp ss sc}, d{u d}, t{p n}, m{y n})
 
 // A corpse has no internal state
 %agent: C()
@@ -19,7 +20,15 @@
 ///////////////////////////////////////
 // Exposure for freely-moving people //
 ///////////////////////////////////////
-'exposure'  P(s{s}, d{u}), P(s{i}, d{u}) -> P(s{i}, d{u}), P(s{i}, d{u}) @ distance*beta/N
+
+// no masks
+'exposure_nn'  P(s{s}, d{u}, m{n}), P(s{i}, d{u}, m{n}) -> P(s{i}, d{u}, m{n}), P(s{i}, d{u}, m{n}) @ distance*beta/N
+// infected people wear masks
+'exposure_ny'  P(s{s}, d{u}, m{n}), P(s{i}, d{u}, m{y}) -> P(s{i}, d{u}, m{n}), P(s{i}, d{u}, m{y}) @ distance*mask_ny*beta/N
+// uninfected people wear masks
+'exposure_yn'  P(s{s}, d{u}, m{y}), P(s{i}, d{u}, m{n}) -> P(s{i}, d{u}, m{y}), P(s{i}, d{u}, m{n}) @ distance*mask_yn*beta/N
+// everyone wears masks
+'exposure_yy'  P(s{s}, d{u}, m{y}), P(s{i}, d{u}, m{y}) -> P(s{i}, d{u}, m{y}), P(s{i}, d{u}, m{y}) @ distance*mask_yn*beta/N
 
 ////////////////////////////////////////
 // Disease progression, post-exposure //
@@ -98,8 +107,8 @@
 ////////////////////////
 //// Initialisation ////
 ////////////////////////
-%init: Init_S  P(s{s}, p{p}, d{u}, t{n})
-%init: Init_I  P(s{i}, p{p}, d{u}, t{n})
+%init: Init_S  P(s{s}, p{p}, d{u}, t{n}, m{n})
+%init: Init_I  P(s{i}, p{p}, d{u}, t{n}, m{n})
 
 ///////////////////////
 //// Perturbations ////

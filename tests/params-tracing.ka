@@ -27,3 +27,7 @@
 %var: ptestrate 1/30     // rate of testing for traced cases
 %var: tpr       1.00     // sensitivity, recall, true positives per positive
 %var: tnr       1.00     // specificity, true negatives per negative
+
+%var: mask_ny   0.5      // infected people wear masks
+%var: mask_yn   0.9      // uninfected people wear masks
+%var: mask_yy   0.2      // everyone wears masks
