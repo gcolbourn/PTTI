@@ -88,32 +88,49 @@ def build_model(N=1000,             # Population
     cm.set_coupling_rate('ICU:ICU=>D', (1-f_ICUR)/t_ICU)
 
     # TESTING AND TRACING
-    thetaAvg = (theta0+thetaI)/2.0+(theta0-thetaI)*f_Ia/2.0
-    for s1 in states[:6]:
 
-        # Population-wide testing
-        rate1 = thetaI if s1 == 'Is' else theta0
-        rate1 *= ((1-s) if s1 in ('S', 'E', 'R') else r)
-        if s1 in ('E', 'Ip', 'Is', 'Ia'):
-            rate1 += etaCT*thetaAvg*r # Contact tracing effect
-        cm.set_coupling_rate('{0}:{0}=>T{0}'.format(s1), rate1)
+    n = c*(t_Ip+t_I)
+    R0 = beta*n
 
-    # Contact tracing for S and R
-    avgn = c*(t_Ip+t_I)
-    R0 = beta*avgn
+    # S=>TS
+    # False positives
+    cm.set_coupling_rate('S:S=>TS', (1-s)*theta0)
 
-    cm.set_coupling_rate('S*Is:S=>TS', (1-beta)*avgn*etaCT*thetaI*r/N)
-    cm.set_coupling_rate('R*Is:R=>TR', avgn*etaCT*thetaI*r/N)
-    cm.set_coupling_rate('S*Ia:S=>TS', (1-beta)*etaCT*theta0*r/N)
-    cm.set_coupling_rate('R*Ia:R=>TR', avgn*etaCT*theta0*r/N)
-    cm.set_coupling_rate('S*Ip:S=>TS', (1-beta)*etaCT*theta0*r/N)
-    cm.set_coupling_rate('R*Ip:R=>TR', avgn*etaCT*theta0*r/N)
+    # Contact tracing, true positives
+    cm.set_coupling_rate('S*Ip:S=>TS', (1-beta)*n*etaCT*thetaI*r/N)
+    cm.set_coupling_rate('S*Ia:S=>TS', (1-beta)*n*etaCT*thetaI*r/N)
+    cm.set_coupling_rate('S*Is:S=>TS', (1-beta)*n*etaCT*thetaI*r/N)
+
+    # E=>TE
+    # False positives + contact tracing
+    cm.set_coupling_rate('E:E=>TE', (1-s)*theta0+n*etaCT*thetaI*r)
+
+    # I=>TI
+    for s1 in ('Ip', 'Ia', 'Is'):
+        # True positives + contact tracing
+        cm.set_coupling_rate('{0}:{0}=>T{0}'.format(s1), r*thetaI*(1+n*etaCT))
+
+    # R=>TR
+    # False positives
+    cm.set_coupling_rate('R:R=>TR', (1-s)*theta0)
+
+    # Contact tracing, true positives
+    cm.set_coupling_rate('R*Ip:R=>TR', n*etaCT*thetaI*r/N)
+    cm.set_coupling_rate('R*Ia:R=>TR', n*etaCT*thetaI*r/N)
+    cm.set_coupling_rate('R*Is:R=>TR', n*etaCT*thetaI*r/N)
+
+    # False positives for everyone
+    for s1 in ('S', 'E', 'Ip', 'Ia', 'Is', 'R'):
+        for s2 in ('S', 'E', 'R'):
+            cm.set_coupling_rate('{0}*{1}:{0}=>T{0}',
+                                 (1-s)*theta0*n*etaCT/N)
 
     # Quarantine expiration
     cm.set_coupling_rate('TS:TS=>S', 1.0/t_Q)
     cm.set_coupling_rate('TR:TR=>R', 1.0/t_Q)
 
     return cm
+
 
 if __name__ == '__main__':
     m = build_model()
