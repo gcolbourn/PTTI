@@ -5,7 +5,8 @@ from cpyment import CModel
 
 
 def build_model(N=1000,             # Population
-                beta=5.0,           # Contact term between S and various I
+                beta=0.06,          # Contact term between S and various I
+                c=5,                # Average number of daily contacts
                 t_E=3.7,            # Time spent in E
                 t_Ip=1.5,           # Time spent in Ip
                 t_I=2.3,            # Time spent in normal infective phases
@@ -20,7 +21,6 @@ def build_model(N=1000,             # Population
                 thetaI=0.1,         # Fraction of infected, symptomatic people who are tested
                 # Efficiency of contact tracing (contacts traced per non-contact positive)
                 etaCT=0.0,
-                avgn=20,            # Average number of contacts
                 r=1,                # Recall of testing protocol
                 s=1,                # Specificity of testing protocol
                 t_Q=14.0,           # Time spent in quarantine unless symptomatic
@@ -40,22 +40,22 @@ def build_model(N=1000,             # Population
     # INFECTION PROCESSES
 
     # Outside of tracing
-    cm.set_coupling_rate('S*Ip:S=>E', beta/N)
-    cm.set_coupling_rate('S*Ia:S=>E', beta/N)
-    cm.set_coupling_rate('S*Is:S=>E', beta/N)
+    cm.set_coupling_rate('S*Ip:S=>E', beta*c/N)
+    cm.set_coupling_rate('S*Ia:S=>E', beta*c/N)
+    cm.set_coupling_rate('S*Is:S=>E', beta*c/N)
 
     # Between traced/quarantined cases
-    cm.set_coupling_rate('TS*TIp:TS=>TE', (1-eta_QQ)*beta/N)
-    cm.set_coupling_rate('TS*TIa:TS=>TE', (1-eta_QQ)*beta/N)
-    cm.set_coupling_rate('TS*TIs:TS=>TE', (1-eta_QQ)*beta/N)
+    cm.set_coupling_rate('TS*TIp:TS=>TE', (1-eta_QQ)*beta*c/N)
+    cm.set_coupling_rate('TS*TIa:TS=>TE', (1-eta_QQ)*beta*c/N)
+    cm.set_coupling_rate('TS*TIs:TS=>TE', (1-eta_QQ)*beta*c/N)
 
     # Cross-infection rates
-    cm.set_coupling_rate('TS*Ip:TS=>TE', (1-eta_QNQ)*beta/N)
-    cm.set_coupling_rate('TS*Ia:TS=>TE', (1-eta_QNQ)*beta/N)
-    cm.set_coupling_rate('TS*Is:TS=>TE', (1-eta_QNQ)*beta/N)
-    cm.set_coupling_rate('S*TIp:TS=>TE', (1-eta_QNQ)*beta/N)
-    cm.set_coupling_rate('S*TIa:TS=>TE', (1-eta_QNQ)*beta/N)
-    cm.set_coupling_rate('S*TIs:TS=>TE', (1-eta_QNQ)*beta/N)
+    cm.set_coupling_rate('TS*Ip:TS=>TE', (1-eta_QNQ)*beta*c/N)
+    cm.set_coupling_rate('TS*Ia:TS=>TE', (1-eta_QNQ)*beta*c/N)
+    cm.set_coupling_rate('TS*Is:TS=>TE', (1-eta_QNQ)*beta*c/N)
+    cm.set_coupling_rate('S*TIp:TS=>TE', (1-eta_QNQ)*beta*c/N)
+    cm.set_coupling_rate('S*TIa:TS=>TE', (1-eta_QNQ)*beta*c/N)
+    cm.set_coupling_rate('S*TIs:TS=>TE', (1-eta_QNQ)*beta*c/N)
 
     # PROGRESSION
 
@@ -99,15 +99,14 @@ def build_model(N=1000,             # Population
         cm.set_coupling_rate('{0}:{0}=>T{0}'.format(s1), rate1)
 
     # Contact tracing for S and R
-    R0 = beta*(t_Ip+t_I)
-    if R0 > avgn:
-        raise ValueError('Invalid parameters! R0 > avgn')
+    avgn = c*(t_Ip+t_I)
+    R0 = beta*avgn
 
-    cm.set_coupling_rate('S*Is:S=>TS', (avgn-R0)*etaCT*thetaI*r/N)
+    cm.set_coupling_rate('S*Is:S=>TS', (1-beta)*avgn*etaCT*thetaI*r/N)
     cm.set_coupling_rate('R*Is:R=>TR', avgn*etaCT*thetaI*r/N)
-    cm.set_coupling_rate('S*Ia:S=>TS', (avgn-R0)*etaCT*theta0*r/N)
+    cm.set_coupling_rate('S*Ia:S=>TS', (1-beta)*etaCT*theta0*r/N)
     cm.set_coupling_rate('R*Ia:R=>TR', avgn*etaCT*theta0*r/N)
-    cm.set_coupling_rate('S*Ip:S=>TS', (avgn-R0)*etaCT*theta0*r/N)
+    cm.set_coupling_rate('S*Ip:S=>TS', (1-beta)*etaCT*theta0*r/N)
     cm.set_coupling_rate('R*Ip:R=>TR', avgn*etaCT*theta0*r/N)
 
     # Quarantine expiration
