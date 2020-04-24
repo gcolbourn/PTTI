@@ -115,3 +115,7 @@ def build_model(N=1000,             # Population
     cm.set_coupling_rate('TR:TR=>R', 1.0/t_Q)
 
     return cm
+
+if __name__ == '__main__':
+    m = build_model()
+    m.pprint()
