@@ -5,7 +5,7 @@ from cpyment import CModel
 
 
 def build_model(N=1000,             # Population
-                beta=0.06,          # Contact term between S and various I
+                beta=0.16,          # Contact term between S and various I
                 c=5,                # Average number of daily contacts
                 t_E=3.7,            # Time spent in E
                 t_Ip=1.5,           # Time spent in Ip
@@ -18,7 +18,7 @@ def build_model(N=1000,             # Population
                 t_ICU=22.63,        # Time spent in ICU
                 f_ICUR=0.8,         # Fraction in ICU who recovers
                 theta0=0.0,         # Fraction of people tested daily regularly
-                thetaI=0.1,         # Fraction of infected, symptomatic people who are tested
+                thetaI=0.05,        # Fraction of infected people who are tested
                 # Efficiency of contact tracing (contacts traced per non-contact positive)
                 etaCT=0.0,
                 r=1,                # Recall of testing protocol
@@ -91,6 +91,7 @@ def build_model(N=1000,             # Population
 
     n = c*(t_Ip+t_I)
     R0 = beta*n
+    print("R0 = {0}".format(R0))
 
     # S=>TS
     # False positives
@@ -122,7 +123,7 @@ def build_model(N=1000,             # Population
     # False positives for everyone
     for s1 in ('S', 'E', 'Ip', 'Ia', 'Is', 'R'):
         for s2 in ('S', 'E', 'R'):
-            cm.set_coupling_rate('{0}*{1}:{0}=>T{0}',
+            cm.set_coupling_rate('{0}*{1}:{0}=>T{0}'.format(s1, s2),
                                  (1-s)*theta0*n*etaCT/N)
 
     # Quarantine expiration
