@@ -119,7 +119,7 @@ class ABMSEIRT(object):
     """
 
     def __init__(self, beta, gamma, delta, theta, th_delay, etaCT=1,
-                 N=1000, infected=10):
+                 N=1000, N_I=10):
 
         # Initialise a population, everyone
         # The columns are:
@@ -134,18 +134,18 @@ class ABMSEIRT(object):
         self.th_delay = th_delay
         self.etaCT = etaCT
         self.N = N
-        self.agents = np.zeros((N, 3))
-        self.agents[:, 0] = PROG_S
-        self.agents[:, 2] = np.inf
 
-        # No known infector for anyone
-        self.agents[:, 1] = -1
+        self.agents = np.zeros((N, 3))
+        self.reset(N_I)
 
     def reset(self, N_I):
         self.agents[:, 0] = PROG_S
         # Pick N_I individuals at random
         ii = np.random.choice(range(self.N), size=N_I, replace=False)
         self.agents[ii, 0] = PROG_I
+        self.agents[:, 2] = np.inf
+        # No known infector for anyone
+        self.agents[:, 1] = -1
 
     def gillespie(self, tmax, samples=100):
 
@@ -170,8 +170,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    sim = ABMSEIRT(args.b, args.g, args.d, args.t, args.w, args.e, args.N)
-    sim.reset(args.i)
+    sim = ABMSEIRT(args.b, args.g, args.d, args.t, args.w, args.e, args.N, args.i)
 
     for i, times, traj in sim.gillespie(100, samples=args.s):
         for j in range(len(times)):
