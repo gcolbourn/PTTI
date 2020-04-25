@@ -77,7 +77,6 @@ def _gillespie(tmax, agents, beta, gamma, delta, theta, th_delay, etaCT,
                 Ii = np.random.choice(Iis)
                 t1[Si, 0] = PROG_E
                 t1[Si, 1] = Ii
-                t1[Si, 2] = t
             elif echoice < p[1]:
                 # E to I
                 Eis = np.where(t1[:, 0] == PROG_E)[0]
@@ -93,6 +92,7 @@ def _gillespie(tmax, agents, beta, gamma, delta, theta, th_delay, etaCT,
                 Iis = np.where(t1[:, 0] == PROG_I)[0]
                 Ii = np.random.choice(Iis)
                 t1[Ii, 0] = PROG_T
+                t1[:,2] = np.where(t1[:,1] == Ii, t, t1[:,2])
             elif echoice < p[4]:
                 Tis = np.where(t1[:, 0] == PROG_T)[0]
                 Ti = np.random.choice(Tis)
