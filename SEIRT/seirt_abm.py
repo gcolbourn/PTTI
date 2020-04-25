@@ -1,5 +1,6 @@
 import numpy as np
 from numba import jit
+import argparse
 
 PROG_S = 0
 PROG_E = 1
@@ -118,7 +119,7 @@ class ABMSEIRT(object):
     """
 
     def __init__(self, beta, gamma, delta, theta, th_delay, etaCT=1,
-                 N=1000):
+                 N=1000, infected=10):
 
         # Initialise a population, everyone
         # The columns are:
@@ -141,7 +142,6 @@ class ABMSEIRT(object):
         self.agents[:, 1] = -1
 
     def reset(self, N_I):
-
         self.agents[:, 0] = PROG_S
         # Pick N_I individuals at random
         ii = np.random.choice(range(self.N), size=N_I, replace=False)
@@ -155,3 +155,29 @@ class ABMSEIRT(object):
                                      self.theta, self.th_delay, self.etaCT))
 
         return trajs
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser("SEIRT Agent-Based Simulator")
+    parser.add_argument("-N", type=int, default=1000, help="Population size")
+    parser.add_argument("-i", type=int, default=10, help="Infected at start")
+    parser.add_argument("-b", type=float, default=0.1, help="Force of infection")
+    parser.add_argument("-g", type=float, default=1.0/3.2, help="Progression rate E -> I")
+    parser.add_argument("-d", type=float, default=1.0/2.3, help="Progression I->R, T->NT")
+    parser.add_argument("-t", type=float, default=1.0, help="Testing rate")
+    parser.add_argument("-e", type=float, default=1.0, help="Tracing efficiency")
+    parser.add_argument("-w", type=float, default=1.0, help="Tracing delay")
+    parser.add_argument("-s", type=int, default=1, help="Sample trajectories")
+
+    args = parser.parse_args()
+
+    sim = ABMSEIRT(args.b, args.g, args.d, args.t, args.w, args.e, args.N)
+    sim.reset(args.i)
+
+    for i, times, traj in sim.gillespie(100, samples=args.s):
+        for j in range(len(times)):
+            S = np.sum(traj[j][:, 0] == PROG_S)
+            E = np.sum(traj[j][:, 0] == PROG_E)
+            I = np.sum(traj[j][:, 0] == PROG_I)
+            R = np.sum(traj[j][:, 0] == PROG_R)
+            T = np.sum(traj[j][:, 0] == PROG_T)
+            print("\t".join(map(str, (times[j], S, E, I, R, T))))
