@@ -25,7 +25,7 @@ def random_agent_i(states, tstate):
 
 
 @jit(nopython=True)
-def seirt_abm_gill(tmax, N, I0, c, beta, gamma, delta, theta, kappa, eta):
+def seirt_abm_gill(tmax, N, I0, c, beta, alpha, gamma, theta, kappa, eta, chi):
 
     # Generate states
     states = np.zeros(N)
@@ -46,8 +46,6 @@ def seirt_abm_gill(tmax, N, I0, c, beta, gamma, delta, theta, kappa, eta):
     Rs = []
     Ts = []
 
-    bct = beta*c/delta
-
     t = 0
     while t < tmax:
 
@@ -63,12 +61,12 @@ def seirt_abm_gill(tmax, N, I0, c, beta, gamma, delta, theta, kappa, eta):
         CT = np.sum(traceable)
 
         # Probability of various transitions
-        wSE = bct*S*I/N
-        wEI = gamma*E
-        wIR = delta*I
+        wSE = beta*c*S*I/N
+        wEI = alpha*E
+        wIR = gamma*I
         wIT = theta*I
         wTR = kappa*T
-        wCT = eta*CT
+        wCT = chi*CT
 
         W = wSE + wEI + wIR + wIT + wTR + wCT
         if W <= 0:
@@ -100,7 +98,8 @@ def seirt_abm_gill(tmax, N, I0, c, beta, gamma, delta, theta, kappa, eta):
             states[ii] = STATE_T
             traceable[ii] = False
             # Also set all those who have it as an infector as traceable
-            traceable[np.where(infectors == ii)[0]] = True
+            ctis = np.where(infectors == ii)[0]
+            traceable[ctis] = (np.random.random(len(ctis)) < eta)
         elif rn < p[4]:
             # T becomes R
             ti = random_agent_i(states, STATE_T)
