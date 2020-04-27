@@ -1,10 +1,14 @@
 import numpy as np
 from numba import jit
 from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
 from cpyment import CModel
+from glob import glob
 import argparse
 import yaml
 import time
+import logging as log
+import sys
 
 # States
 STATE_S = 0
@@ -22,6 +26,7 @@ INDEX_ED = 3
 INDEX_ID = 5
 INDEX_RD = 7
 
+log.basicConfig(stream=sys.stdout, level=log.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 @jit(nopython=True)
 def count_states(states, diagnosed):
@@ -185,7 +190,7 @@ class SEIRxUD(object):
         trajs = []
 
         for i in range(samples):
-            print('{0}/{1}'.format(i+1, samples))
+            log.info('Sampling trajectory {0}/{1}'.format(i+1, samples))
             traj = seirxud_abm_gill(tmax=self.t[-1],
                                     N=self.N,
                                     I0=int(self.N*self.I0),
@@ -253,7 +258,7 @@ if __name__ == '__main__':
     parser.add_argument("-c", type=float, default=13.0, help="Contact rate")
     parser.add_argument("-b", "--beta", type=float, default=0.025, help="Infection per contact")
     parser.add_argument("-a", "--alpha", type=float, default=0.2, help="Progression rate E -> I")
-    parser.add_argument("-g", "--gamma", type=float, default=0.0714, help="Progression I->R")
+    parser.add_argument("-g", "--gamma", type=float, default=0.1, help="Progression I->R")
     parser.add_argument("-t", "--theta", type=float, default=0.1, help="Testing rate")
     parser.add_argument("-e", "--eta", type=float, default=0.75, help="Tracing efficiency")
     parser.add_argument("-x", "--chi", type=float, default=0.25, help="Testing rate")
@@ -265,12 +270,8 @@ if __name__ == '__main__':
     parser.add_argument("--yaml", type=str, default=None, help="Read parameters from file")
     parser.add_argument("--seed", type=int, default=time.time(), help="Random seed")
     parser.add_argument("-o", "--output", type=str, default="simdata", help="Output file")
-
+    parser.add_argument("--plot", default=False, action="store_true", help="Generate plots")
     args = parser.parse_args()
-
-    if not args.ode and not args.abm:
-        parser.usage()
-        print("\nOne of --ode or --abm must be given")
 
     params = {
         "N": args.N, "I0": float(args.I)/args.N,
@@ -286,17 +287,78 @@ if __name__ == '__main__':
             args.output = ydata.get("meta", {}).get("output", args.output)
             args.seed = ydata.get("meta", {}).get("seed", time.time())
 
+    R0 = params["beta"]*params["c"]/params["gamma"]
+    N = params["N"]
+
+    log.info("Populations size {0}, R0={1}".format(N, R0))
+
     np.random.seed(args.seed)
 
     if args.ode:
         sim = SEIRxUD(**params)
+        log.info("Running deterministic model with contact tracing")
         traj = sim.run_cmodel()
         sim.t.dump(args.output + ".t")
         traj["y"].dump(args.output + ".y")
+        log.info("Running deterministic model without contact tracing")
+        trajNoCT = sim.run_cmodel(etadamp=0)
+        trajNoCT["y"].dump(args.output + ".n")
     if args.abm:
         sim = SEIRxUD(**params)
+        log.info("Running mechanistic agent-based model")
         trajs = sim.run_abm() #args.samples)
         sim.t.dump(args.output + ".t")
         trajs.dump(args.output + ".trajs")
+    if args.plot:
+        log.info("Generating plots")
+        t = np.load(args.output + ".t", allow_pickle=True)
+        traj = {"y": np.load(args.output + ".y", allow_pickle=True)}
+        trajNoCT = {"y": np.load(args.output + ".n", allow_pickle=True)}
 
+        trajs = [np.load(f, allow_pickle=True) for f in glob(args.output + "*.trajs")]
+        trajsGill = np.vstack(trajs)
+        trajsGillAvg = np.average(trajsGill, axis=0)
+        trajsGillStd = np.std(trajsGill, axis=0)
 
+        ##
+        ## plot trajectories and envelope
+        ##
+        fig, ax = plt.subplots()
+        colors = {
+            'S': np.array((0.0, 0.5, 1.0)),
+            'E': np.array((1.0, 0.6, 0.0)),
+            'I': np.array((1.0, 0.2, 0.1)),
+            'R': np.array((0.0, 0.7, 0.4)),
+        }
+
+        stdn = 1
+        t0i = 0
+
+        for i, s in enumerate('SEIR'):
+            for j, d in enumerate('UD'):
+                col = colors[s]*(1 if j == 0 else 0.5)
+                ax.plot(t[t0i:], traj['y'][:,2*i+j], c=col, label=s+d, lw=2.0)
+                ax.plot(t, trajNoCT['y'][:,2*i+j], c=col, lw=2.0, ls='--')
+                ax.plot(t, trajsGillAvg[2*i+j], c=col, lw=0.7)
+                ax.fill_between(t,
+                                trajsGillAvg[2*i+j]+stdn*trajsGillStd[2*i+j],
+                                trajsGillAvg[2*i+j]-stdn*trajsGillStd[2*i+j],
+                                color=list(col) + [0.3])
+
+        ax.axhline((1-1/R0)*N, c=(0,0,0), lw=0.5, ls='--')
+        ax.legend()
+        plt.savefig(args.output + ".png")
+
+        ##
+        ## plot diagnosed comparison
+        ##
+        fig, ax = plt.subplots()
+        ax.set_title('Percentage of diagnosed people')
+        ax.set_xlabel('t')
+        ax.set_ylabel('*D (%)')
+        ax.plot(t[t0i:], np.sum(traj['y'][:,1::2], axis=1)*100/N, label='ODE')
+        ax.plot(t, np.sum(trajsGillAvg[1::2], axis=0)*100/N, label='ABM')
+        ax.legend()
+        plt.savefig(args.output + "-diagnosed.png")
+
+    log.info("Done")
