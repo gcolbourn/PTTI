@@ -1,0 +1,30 @@
+#!/bin/sh
+#SBATCH -J SEIR_x_UD-ABM
+#SBATCH -p knl
+#SBATCH -N 1
+#SBATCH --exclusive
+#SBATCH --time 24:00:00
+#SBATCH -e logs/SEIR_x_UD-knl-%A-%a.err
+#SBATCH -o logs/SEIR_x_UD-knl-%A-%a.out
+
+##
+## Batch script for running mechanistic ABM simulations on 
+## knight's landing host. Runs M instances of the simulation
+## because it will quickly become RAM-bound as there is only
+## 96GB available per host.
+##
+## Argument is the basename of the parameter file. Run this
+## as:
+##      sbatch -A ACCOUNT -a 1-4 SEIR_x_UD-ABM.knl realistic M
+##
+
+module load parallel
+${HOME}/miniconda3/condabin/conda activate epi
+
+params="${1}"
+M="${2}"
+
+seq ${M} | parallel python ../SEIR_x_UD.py --yaml "${params}.yaml" --abm \
+	--samples 1 --output "${params}.${SLURM_ARRAY_TASK_ID}.{}"
+
+

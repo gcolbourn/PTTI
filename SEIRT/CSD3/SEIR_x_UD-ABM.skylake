@@ -1,0 +1,26 @@
+#!/bin/sh
+#SBATCH -J SEIR_x_UD-ABM
+#SBATCH -p skylake
+#SBATCH -c 2
+#SBATCH --time 24:00:00
+#SBATCH --exclusive=user
+#SBATCH -e logs/SEIR_x_UD-skylake-%A-%a.err
+#SBATCH -o logs/SEIR_x_UD-skylake-%A-%a.out
+
+##
+## Batch script for running mechanistic ABM simulations on 
+## knight's landing host. Runs a single instance of the
+## simulation.
+##
+## Argument is the basename of the parameter file. Run this
+## as:
+##      sbatch -A ACCOUNT -a 1-100 SEIR_x_UD-ABM.skylake realistic
+##
+${HOME}/miniconda3/condabin/conda activate epi
+
+params="${1}"
+
+python ../SEIR_x_UD.py --yaml "${params}.yaml" --abm --samples=1 \
+	--seed '${SLURM_ARRAY_TASK_ID}' \
+       	--output "${params}.${SLURM_ARRAY_TASK_ID}"
+

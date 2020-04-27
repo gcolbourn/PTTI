@@ -290,7 +290,8 @@ if __name__ == '__main__':
     R0 = params["beta"]*params["c"]/params["gamma"]
     N = params["N"]
 
-    log.info("Populations size {0}, R0={1}".format(N, R0))
+    log.info("Params: {0}".format(params))
+    log.info("R0={0}".format(R0))
 
     np.random.seed(int(args.seed))
 
@@ -298,8 +299,8 @@ if __name__ == '__main__':
         sim = SEIRxUD(**params)
         log.info("Running deterministic model with contact tracing")
         traj = sim.run_cmodel()
-        sim.t.dump(args.output + ".t")
-        traj["y"].dump(args.output + ".y")
+        sim.t.dump("{0}.t".format(args.output))
+        traj["y"].dump("{0}.y".format(args.output))
         log.info("Running deterministic model without contact tracing")
         trajNoCT = sim.run_cmodel(etadamp=0)
         trajNoCT["y"].dump(args.output + ".n")
@@ -307,8 +308,8 @@ if __name__ == '__main__':
         sim = SEIRxUD(**params)
         log.info("Running mechanistic agent-based model")
         trajs = sim.run_abm() #args.samples)
-        sim.t.dump(args.output + ".t")
-        trajs.dump(args.output + ".trajs")
+        sim.t.dump("{0}.t".format(args.output))
+        trajs.dump("{0}.trajs".format(args.output))
     if args.plot:
         log.info("Generating plots")
         t = np.load(args.output + ".t", allow_pickle=True)
