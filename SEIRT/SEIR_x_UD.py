@@ -2,6 +2,9 @@ import numpy as np
 from numba import jit
 from scipy.interpolate import interp1d
 from cpyment import CModel
+import argparse
+import yaml
+import time
 
 # States
 STATE_S = 0
@@ -170,7 +173,7 @@ class SEIRxUD(object):
         'chi': 0.7
     }
 
-    def __init__(self, N=1000, I0=0.01, tmax=100, tsteps=1000, params={}):
+    def __init__(self, N=1000, I0=0.01, tmax=100, tsteps=1000, **params):
 
         self.t = np.linspace(0, tmax, tsteps)
         self.N = N
@@ -241,3 +244,59 @@ class SEIRxUD(object):
             y0[INDEX_IU] = self.N*self.I0
 
         return self.cm.integrate(self.t[t0i:], y0)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser("SEIRT Agent-Based Simulator")
+    parser.add_argument("-N", type=int, default=1000, help="Population size")
+    parser.add_argument("-I", type=int, default=10, help="Infected at start")
+    parser.add_argument("-c", type=float, default=13.0, help="Contact rate")
+    parser.add_argument("-b", "--beta", type=float, default=0.025, help="Infection per contact")
+    parser.add_argument("-a", "--alpha", type=float, default=0.2, help="Progression rate E -> I")
+    parser.add_argument("-g", "--gamma", type=float, default=0.0714, help="Progression I->R")
+    parser.add_argument("-t", "--theta", type=float, default=0.1, help="Testing rate")
+    parser.add_argument("-e", "--eta", type=float, default=0.75, help="Tracing efficiency")
+    parser.add_argument("-x", "--chi", type=float, default=0.25, help="Testing rate")
+    parser.add_argument("--tmax", type=float, default=100.0, help="Simulation end time")
+    parser.add_argument("--steps", type=int, default=1000, help="Time steps (ODEs)")
+    parser.add_argument("--ode", default=False, action="store_true", help="Run ODE simulation")
+    parser.add_argument("--abm", default=False, action="store_true", help="Run mechanistic ABM simulation")
+    parser.add_argument("--samples", type=int, default=10, help="Number of samples for ABM")
+    parser.add_argument("--yaml", type=str, default=None, help="Read parameters from file")
+    parser.add_argument("--seed", type=int, default=time.time(), help="Random seed")
+    parser.add_argument("-o", "--output", type=str, default="simdata", help="Output file")
+
+    args = parser.parse_args()
+
+    if not args.ode and not args.abm:
+        parser.usage()
+        print("\nOne of --ode or --abm must be given")
+
+    params = {
+        "N": args.N, "I0": args.I,
+        "c": args.c, "beta": args.beta, "alpha": args.alpha, "gamma": args.gamma,
+        "theta": args.theta, "eta": args.eta, "chi": args.chi,
+        "tmax": args.tmax, "tsteps": args.steps
+    }
+
+    if args.yaml is not None:
+        with open(args.yaml) as fp:
+            ydata = yaml.load(fp)
+            params.update(ydata.get("sim", {}))
+            args.output = ydata.get("meta", {}).get("output", args.output)
+            args.seed = ydata.get("meta", {}).get("seed", time.time())
+
+    np.random.seed(args.seed)
+
+    if args.ode:
+        sim = SEIRxUD(**params)
+        traj = sim.run_cmodel()
+        sim.t.dump(args.output + ".t")
+        traj["y"].dump(args.output + ".y")
+    if args.abm:
+        sim = SEIRxUD(**params)
+        trajs = sim.run_abm() #args.samples)
+        sim.t.dump(args.output + ".t")
+        trajs.dump(args.output + ".trajs")
+
+
