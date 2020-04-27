@@ -40,10 +40,10 @@ def seirt_abm_gill(tmax=10,
 
     # Generate states
     states = np.zeros(N)
-    # Generate infector record
-    infectors = -np.ones(N)
     # Generate traceable status
     traceable = np.zeros(N)
+
+    contactM = np.zeros((N, N))
 
     # Infect I0 patients
     istart = np.random.choice(np.arange(N), size=I0, replace=False)
@@ -72,6 +72,7 @@ def seirt_abm_gill(tmax=10,
         CT = np.sum(traceable)
 
         # Probability of various transitions
+        wSIc = c*S*I/N
         wSE = beta*c*S*I/N
         wEI = alpha*E
         wIR = gamma*I
@@ -79,21 +80,22 @@ def seirt_abm_gill(tmax=10,
         wTR = kappa*T
         wCT = chi*CT
 
-        W = wSE + wEI + wIR + wIT + wTR + wCT
+        W = wSIc + wEI + wIR + wIT + wTR + wCT
         if W <= 0:
             break
 
-        p = np.cumsum(np.array([wSE, wEI, wIR, wIT, wTR, wCT]))/W
+        p = np.cumsum(np.array([wSIc, wEI, wIR, wIT, wTR, wCT]))/W
 
         dt = -np.log(np.random.random())/W
 
         rn = np.random.random()
         if rn < p[0]:
-            # Infect a random S
+            # Contact between a random S and a random I
             si = random_agent_i(states, STATE_S)
             ii = random_agent_i(states, STATE_I)
-            states[si] = STATE_E
-            infectors[si] = ii
+            contactM[si][ii] = True
+            if np.random.random() <= beta:
+                states[si] = STATE_E
         elif rn < p[1]:
             # E becomes I
             ei = random_agent_i(states, STATE_E)
@@ -102,19 +104,18 @@ def seirt_abm_gill(tmax=10,
             # I becomes R
             ii = random_agent_i(states, STATE_I)
             states[ii] = STATE_R
-            traceable[ii] = False
         elif rn < p[3]:
             # I becomes T
             ii = random_agent_i(states, STATE_I)
             states[ii] = STATE_T
             traceable[ii] = False
             # Also set all those who have it as an infector as traceable
-            ctis = np.where(infectors == ii)[0]
-            traceable[ctis] = (np.random.random(len(ctis)) < eta)
+            ctis = np.where(contactM[:, ii])[0]
+            traceable[ctis] = np.logical_or(traceable[ctis],
+                                            np.random.random(len(ctis)) < eta)
         elif rn < p[4]:
             # T becomes R
             ti = random_agent_i(states, STATE_T)
-            traceable[ti] = False
             states[ti] = STATE_R
         elif rn < p[5]:
             # Random traceable?
@@ -144,7 +145,7 @@ def seirt_abm_sample(t, samples=10, params={}):
 
     # Do interpolation and averaging
     intptrajs = np.array([interp1d(tr[0], tr[1:], kind='previous',
-        bounds_error=False,
+                                   bounds_error=False,
                                    fill_value=(tr[1:, 0], tr[1:, -1]))(t)
                           for tr in trajs])
 
