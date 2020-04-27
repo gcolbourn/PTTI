@@ -292,7 +292,7 @@ if __name__ == '__main__':
 
     log.info("Populations size {0}, R0={1}".format(N, R0))
 
-    np.random.seed(args.seed)
+    np.random.seed(int(args.seed))
 
     if args.ode:
         sim = SEIRxUD(**params)
