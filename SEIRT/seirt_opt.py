@@ -1,5 +1,6 @@
 import numpy as np
 from numba import jit
+from scipy.interpolate import interp1d
 
 # States
 STATE_S = 0
@@ -25,7 +26,17 @@ def random_agent_i(states, tstate):
 
 
 @jit(nopython=True)
-def seirt_abm_gill(tmax, N, I0, c, beta, alpha, gamma, theta, kappa, eta, chi):
+def seirt_abm_gill(tmax=10,
+                   N=1000,
+                   I0=10,
+                   c=5,
+                   beta=0.05,
+                   alpha=0.2,
+                   gamma=0.1,
+                   theta=0.0,
+                   kappa=0.05,
+                   eta=0,
+                   chi=0):
 
     # Generate states
     states = np.zeros(N)
@@ -122,3 +133,19 @@ def seirt_abm_gill(tmax, N, I0, c, beta, alpha, gamma, theta, kappa, eta, chi):
     times.append(t)
 
     return times, Ss, Es, Is, Rs, Ts
+
+
+def seirt_abm_sample(t, samples=10, params={}):
+
+    trajs = []
+    for i in range(samples):
+        traj = np.array(seirt_abm_gill(**params))
+        trajs.append(traj)
+
+    # Do interpolation and averaging
+    intptrajs = np.array([interp1d(tr[0], tr[1:], kind='previous',
+        bounds_error=False,
+                                   fill_value=(tr[1:, 0], tr[1:, -1]))(t)
+                          for tr in trajs])
+
+    return intptrajs
