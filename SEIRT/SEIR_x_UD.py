@@ -182,6 +182,7 @@ class SEIRxUD(object):
         trajs = []
 
         for i in range(samples):
+            print('{0}/{1}'.format(i+1, samples))
             traj = seirxud_abm_gill(tmax=self.t[-1],
                                     N=self.N,
                                     I0=int(self.N*self.I0),
@@ -228,12 +229,15 @@ class SEIRxUD(object):
 
         self.cm = cm
 
-    def run_cmodel(self, etadamp=1):
+    def run_cmodel(self, t0=0, y0=None,  etadamp=1):
+
+        t0i = np.where(self.t >= t0)[0][0]
 
         self.make_cmodel(etadamp)
 
-        y0 = np.zeros(8)
-        y0[INDEX_SU] = self.N*(1-self.I0)
-        y0[INDEX_IU] = self.N*self.I0
+        if y0 is None:
+            y0 = np.zeros(8)
+            y0[INDEX_SU] = self.N*(1-self.I0)
+            y0[INDEX_IU] = self.N*self.I0
 
-        return self.cm.integrate(self.t, y0)
+        return self.cm.integrate(self.t[t0i:], y0)
