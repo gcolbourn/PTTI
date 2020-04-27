@@ -184,7 +184,7 @@ class SEIRxUD(object):
         self.N = N
         self.I0 = I0
         self.params = dict(self.default_params)
-        self.params.update(params)
+        self.params.update((k,v) for (k,v) in params.items() if k in self.default_params)
 
     def run_abm(self, samples=10):
         trajs = []
