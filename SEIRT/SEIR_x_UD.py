@@ -273,7 +273,7 @@ if __name__ == '__main__':
         print("\nOne of --ode or --abm must be given")
 
     params = {
-        "N": args.N, "I0": args.I,
+        "N": args.N, "I0": float(args.I)/args.N,
         "c": args.c, "beta": args.beta, "alpha": args.alpha, "gamma": args.gamma,
         "theta": args.theta, "eta": args.eta, "chi": args.chi,
         "tmax": args.tmax, "tsteps": args.steps
