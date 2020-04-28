@@ -26,7 +26,9 @@ INDEX_ED = 3
 INDEX_ID = 5
 INDEX_RD = 7
 
-log.basicConfig(stream=sys.stdout, level=log.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+log.basicConfig(stream=sys.stdout, level=log.INFO,
+                format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 @jit(nopython=True)
 def count_states(states, diagnosed):
@@ -39,6 +41,30 @@ def count_states(states, diagnosed):
     RU = np.sum((states == STATE_R)*(1-diagnosed))
     RD = np.sum((states == STATE_R)*diagnosed)
     return SU, SD, EU, ED, IU, ID, RU, RD
+
+
+@jit(nopython=True)
+def count_pcis(states, diagnosed, contactM):
+    SUi = np.where((states == STATE_S)*(1-diagnosed))[0]
+    SDi = np.where((states == STATE_S)*diagnosed)[0]
+    EUi = np.where((states == STATE_E)*(1-diagnosed))[0]
+    EDi = np.where((states == STATE_E)*diagnosed)[0]
+    IUi = np.where((states == STATE_I)*(1-diagnosed))[0]
+    IDi = np.where((states == STATE_I)*diagnosed)[0]
+    RUi = np.where((states == STATE_R)*(1-diagnosed))[0]
+    RDi = np.where((states == STATE_R)*diagnosed)[0]
+
+    N = states.shape[0]
+    SUpci = np.sum(contactM[SUi])/(len(SUi)*N)
+    SDpci = np.sum(contactM[SDi])/(len(SDi)*N)
+    EUpci = np.sum(contactM[EUi])/(len(EUi)*N)
+    EDpci = np.sum(contactM[EDi])/(len(EDi)*N)
+    IUpci = np.sum(contactM[IUi])/(len(IUi)*N)
+    IDpci = np.sum(contactM[IDi])/(len(IDi)*N)
+    RUpci = np.sum(contactM[RUi])/(len(RUi)*N)
+    RDpci = np.sum(contactM[RDi])/(len(RDi)*N)
+
+    return SUpci, SDpci, EUpci, EDpci, IUpci, IDpci, RUpci, RDpci
 
 
 @jit(nopython=True)
@@ -61,7 +87,8 @@ def seirxud_abm_gill(tmax=10,
                      theta=0.0,
                      kappa=0.05,
                      eta=0,
-                     chi=0):
+                     chi=0,
+                     return_pcis=False):
 
     # Generate states
     states = np.zeros(N)
@@ -79,6 +106,7 @@ def seirxud_abm_gill(tmax=10,
 
     times = []
     traj = []
+    pcis = []
 
     t = 0
     while t < tmax:
@@ -86,6 +114,10 @@ def seirxud_abm_gill(tmax=10,
         counts = count_states(states, diagnosed)
         traj.append(counts)
         times.append(t)
+        if return_pcis:
+            pcis.append(np.sum(contactM)/N**2)
+        else:
+            pcis.append(0)
 
         # Traceable agents?
         CT = np.sum(traceable)
@@ -161,8 +193,12 @@ def seirxud_abm_gill(tmax=10,
     counts = count_states(states, diagnosed)
     traj.append(counts)
     times.append(t)
+    if return_pcis:
+        pcis.append(np.sum(contactM)/N**2)
+    else:
+        pcis.append(0)
 
-    return times, traj
+    return times, traj, pcis
 
 
 class SEIRxUD(object):
@@ -184,9 +220,10 @@ class SEIRxUD(object):
         self.N = N
         self.I0 = I0
         self.params = dict(self.default_params)
-        self.params.update((k,v) for (k,v) in params.items() if k in self.default_params)
+        self.params.update((k, v) for (k, v) in params.items()
+                           if k in self.default_params)
 
-    def run_abm(self, samples=10):
+    def run_abm(self, samples=10, return_pcis=False):
         trajs = []
 
         for i in range(samples):
@@ -194,8 +231,9 @@ class SEIRxUD(object):
             traj = seirxud_abm_gill(tmax=self.t[-1],
                                     N=self.N,
                                     I0=int(self.N*self.I0),
+                                    return_pcis=return_pcis,
                                     **self.params)
-            trajs.append((traj[0], np.array(traj[1]).T))
+            trajs.append((traj[0], np.array(traj[1]).T, traj[2]))
 
         # Do interpolation and averaging
         intptrajs = np.array([interp1d(tr[0], tr[1], kind='previous',
@@ -203,8 +241,15 @@ class SEIRxUD(object):
                                        fill_value=(tr[1][:, 0], tr[1][:, -1])
                                        )(self.t)
                               for tr in trajs])
-
-        return intptrajs
+        if return_pcis:
+            intppcis = np.array([interp1d(tr[0], tr[2], kind='previous',
+                                          bounds_error=False,
+                                          fill_value=(tr[2][0], tr[2][-1])
+                                          )(self.t)
+                                 for tr in trajs])
+            return intptrajs, intppcis
+        else:
+            return intptrajs
 
     def make_cmodel(self, etadamp=1):
 
@@ -256,21 +301,36 @@ if __name__ == '__main__':
     parser.add_argument("-N", type=int, default=1000, help="Population size")
     parser.add_argument("-I", type=int, default=10, help="Infected at start")
     parser.add_argument("-c", type=float, default=13.0, help="Contact rate")
-    parser.add_argument("-b", "--beta", type=float, default=0.025, help="Infection per contact")
-    parser.add_argument("-a", "--alpha", type=float, default=0.2, help="Progression rate E -> I")
-    parser.add_argument("-g", "--gamma", type=float, default=0.1, help="Progression I->R")
-    parser.add_argument("-t", "--theta", type=float, default=0.1, help="Testing rate")
-    parser.add_argument("-e", "--eta", type=float, default=0.75, help="Tracing efficiency")
-    parser.add_argument("-x", "--chi", type=float, default=0.25, help="Testing rate")
-    parser.add_argument("--tmax", type=float, default=100.0, help="Simulation end time")
-    parser.add_argument("--steps", type=int, default=1000, help="Time steps (ODEs)")
-    parser.add_argument("--ode", default=False, action="store_true", help="Run ODE simulation")
-    parser.add_argument("--abm", default=False, action="store_true", help="Run mechanistic ABM simulation")
-    parser.add_argument("--samples", type=int, default=10, help="Number of samples for ABM")
-    parser.add_argument("--yaml", type=str, default=None, help="Read parameters from file")
-    parser.add_argument("--seed", type=int, default=time.time(), help="Random seed")
-    parser.add_argument("-o", "--output", type=str, default="simdata", help="Output file")
-    parser.add_argument("--plot", default=False, action="store_true", help="Generate plots")
+    parser.add_argument("-b", "--beta", type=float,
+                        default=0.025, help="Infection per contact")
+    parser.add_argument("-a", "--alpha", type=float,
+                        default=0.2, help="Progression rate E -> I")
+    parser.add_argument("-g", "--gamma", type=float,
+                        default=0.1, help="Progression I->R")
+    parser.add_argument("-t", "--theta", type=float,
+                        default=0.1, help="Testing rate")
+    parser.add_argument("-e", "--eta", type=float,
+                        default=0.75, help="Tracing efficiency")
+    parser.add_argument("-x", "--chi", type=float,
+                        default=0.25, help="Testing rate")
+    parser.add_argument("--tmax", type=float, default=100.0,
+                        help="Simulation end time")
+    parser.add_argument("--steps", type=int, default=1000,
+                        help="Time steps (ODEs)")
+    parser.add_argument("--ode", default=False,
+                        action="store_true", help="Run ODE simulation")
+    parser.add_argument("--abm", default=False, action="store_true",
+                        help="Run mechanistic ABM simulation")
+    parser.add_argument("--samples", type=int, default=10,
+                        help="Number of samples for ABM")
+    parser.add_argument("--yaml", type=str, default=None,
+                        help="Read parameters from file")
+    parser.add_argument("--seed", type=int,
+                        default=time.time(), help="Random seed")
+    parser.add_argument("-o", "--output", type=str,
+                        default="simdata", help="Output file")
+    parser.add_argument("--plot", default=False,
+                        action="store_true", help="Generate plots")
     args = parser.parse_args()
 
     params = {
@@ -307,7 +367,7 @@ if __name__ == '__main__':
     if args.abm:
         sim = SEIRxUD(**params)
         log.info("Running mechanistic agent-based model")
-        trajs = sim.run_abm() #args.samples)
+        trajs = sim.run_abm()  # args.samples)
         sim.t.dump("{0}.t".format(args.output))
         trajs.dump("{0}.trajs".format(args.output))
     if args.plot:
@@ -316,13 +376,14 @@ if __name__ == '__main__':
         traj = {"y": np.load(args.output + ".y", allow_pickle=True)}
         trajNoCT = {"y": np.load(args.output + ".n", allow_pickle=True)}
 
-        trajs = [np.load(f, allow_pickle=True) for f in glob(args.output + "*.trajs")]
+        trajs = [np.load(f, allow_pickle=True)
+                 for f in glob(args.output + "*.trajs")]
         trajsGill = np.vstack(trajs)
         trajsGillAvg = np.average(trajsGill, axis=0)
         trajsGillStd = np.std(trajsGill, axis=0)
 
         ##
-        ## plot trajectories and envelope
+        # plot trajectories and envelope
         ##
         fig, ax = plt.subplots()
         colors = {
@@ -338,26 +399,26 @@ if __name__ == '__main__':
         for i, s in enumerate('SEIR'):
             for j, d in enumerate('UD'):
                 col = colors[s]*(1 if j == 0 else 0.5)
-                ax.plot(t[t0i:], traj['y'][:,2*i+j], c=col, label=s+d, lw=2.0)
-                ax.plot(t, trajNoCT['y'][:,2*i+j], c=col, lw=2.0, ls='--')
+                ax.plot(t[t0i:], traj['y'][:, 2*i+j], c=col, label=s+d, lw=2.0)
+                ax.plot(t, trajNoCT['y'][:, 2*i+j], c=col, lw=2.0, ls='--')
                 ax.plot(t, trajsGillAvg[2*i+j], c=col, lw=0.7)
                 ax.fill_between(t,
                                 trajsGillAvg[2*i+j]+stdn*trajsGillStd[2*i+j],
                                 trajsGillAvg[2*i+j]-stdn*trajsGillStd[2*i+j],
                                 color=list(col) + [0.3])
 
-        ax.axhline((1-1/R0)*N, c=(0,0,0), lw=0.5, ls='--')
+        ax.axhline((1-1/R0)*N, c=(0, 0, 0), lw=0.5, ls='--')
         ax.legend()
         plt.savefig(args.output + ".png")
 
         ##
-        ## plot diagnosed comparison
+        # plot diagnosed comparison
         ##
         fig, ax = plt.subplots()
         ax.set_title('Percentage of diagnosed people')
         ax.set_xlabel('t')
         ax.set_ylabel('*D (%)')
-        ax.plot(t[t0i:], np.sum(traj['y'][:,1::2], axis=1)*100/N, label='ODE')
+        ax.plot(t[t0i:], np.sum(traj['y'][:, 1::2], axis=1)*100/N, label='ODE')
         ax.plot(t, np.sum(trajsGillAvg[1::2], axis=0)*100/N, label='ABM')
         ax.legend()
         plt.savefig(args.output + "-diagnosed.png")
