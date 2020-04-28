@@ -165,6 +165,7 @@ def seirxud_abm_gill(tmax=10,
         elif rn < wp[2]:
             # I becomes R
             ii = random_agent_i(states, diagnosed, STATE_I)
+            contactM[:][ii] = False
             states[ii] = STATE_R
         elif rn < wp[3]:
             # Diagnosis
