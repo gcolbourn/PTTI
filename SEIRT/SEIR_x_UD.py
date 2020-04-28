@@ -32,13 +32,13 @@ log.basicConfig(stream=sys.stdout, level=log.INFO,
 
 @jit(nopython=True)
 def count_states(states, diagnosed):
-    SU = np.sum((states == STATE_S)*(1-diagnosed))
+    SU = np.sum((states == STATE_S)*(diagnosed == 0))
     SD = np.sum((states == STATE_S)*diagnosed)
-    EU = np.sum((states == STATE_E)*(1-diagnosed))
+    EU = np.sum((states == STATE_E)*(diagnosed == 0))
     ED = np.sum((states == STATE_E)*diagnosed)
-    IU = np.sum((states == STATE_I)*(1-diagnosed))
+    IU = np.sum((states == STATE_I)*(diagnosed == 0))
     ID = np.sum((states == STATE_I)*diagnosed)
-    RU = np.sum((states == STATE_R)*(1-diagnosed))
+    RU = np.sum((states == STATE_R)*(diagnosed == 0))
     RD = np.sum((states == STATE_R)*diagnosed)
     return SU, SD, EU, ED, IU, ID, RU, RD
 
@@ -91,13 +91,13 @@ def seirxud_abm_gill(tmax=10,
                      return_pcis=False):
 
     # Generate states
-    states = np.zeros(N)
+    states = np.zeros(N, dtype=np.int8)
     # Generate diagnosed state
-    diagnosed = np.zeros(N)
+    diagnosed = np.zeros(N, dtype=np.bool8)
     # Generate traceable status
-    traceable = np.zeros(N)
+    traceable = np.zeros(N, dtype=np.bool8)
     # Contact matrix
-    contactM = np.zeros((N, N))
+    contactM = np.zeros((N, N), dtype=np.bool8)
 
     # Infect I0 patients
     istart = np.random.choice(np.arange(N), size=I0, replace=False)
@@ -115,7 +115,7 @@ def seirxud_abm_gill(tmax=10,
         traj.append(counts)
         times.append(t)
         if return_pcis:
-            pcis.append(np.sum(contactM)/N**2)
+            pcis.append(np.sum(np.sum(contactM, axis=0) > 0)/N)
         else:
             pcis.append(0)
 
@@ -155,7 +155,7 @@ def seirxud_abm_gill(tmax=10,
             # Contact between a random SU and a random IU
             si = random_agent_i(states, diagnosed, STATE_S, False)
             ii = random_agent_i(states, diagnosed, STATE_I, False)
-            contactM[si][ii] = True
+            contactM[si,ii] = True
             if np.random.random() <= beta:
                 states[si] = STATE_E
         elif rn < wp[1]:
@@ -165,7 +165,7 @@ def seirxud_abm_gill(tmax=10,
         elif rn < wp[2]:
             # I becomes R
             ii = random_agent_i(states, diagnosed, STATE_I)
-            contactM[:][ii] = False
+            contactM[:,ii] = False
             states[ii] = STATE_R
         elif rn < wp[3]:
             # Diagnosis
@@ -195,7 +195,7 @@ def seirxud_abm_gill(tmax=10,
     traj.append(counts)
     times.append(t)
     if return_pcis:
-        pcis.append(np.sum(contactM)/N**2)
+        pcis.append(np.sum(np.sum(contactM, axis=0) > 0)/N)
     else:
         pcis.append(0)
 
