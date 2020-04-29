@@ -5,54 +5,33 @@
 # Parameters
 UK_Population = 67886011
 UK_GDP_Monthly = 186000000000
+UK_Shutdown_GDP_Penalty = 1  # How much economic damage is happening during shutdown? Need a source.
 
-# NHS Costs
-NHS cost of death
-n_d,0
+# We will (potentially) model several possible interventions, with different costs.
+# Tracing alone, universal testing + tracing, or partial / scaled testing + tracing.
+# In each case, we need to compute costs from
 
-NHS cost of ICU case
-n_i,0
-£29,335
-NHS cost of hospital (non-ICU) case
-n_w,0
-£2,422
-Productivity cost of lost day of work
-p_0
-£119
-Productivity cost of death
-p_d,0
-£358
-Productivity cost of ICU case
-p_i,0
-£2,509
-Productivity cost of hospital (non-ICU) case
-p_w,0
-£1,195
-Productivity cost of non-hospital case
-p_h,0
-£358
-
-
-
-# Fixed_costs
-
+# Fixed Tracing costs
 
 # Variable Tracing Costs
-Number_of_Tracers =  UK_Population/1000
-Cost_per_Tracer = 80 # Daily
-Number_of_Tracing_Supervisors = Number_of_Tracers/50
-Cost_per_Supervisor = 160 # Daily
+Max_Number_of_Tracers = UK_Population/1000
+Cost_per_Tracer = 80  # Daily
+Number_of_Tracing_Supervisors = Max_Number_of_Tracers/50
+Cost_per_Supervisor = 160  # Daily
 Number_of_Tracing_Team_Leads = 343
-Cost_per_Team_Lead = 300 # Daily
+Cost_per_Team_Lead = 300  # Daily
 
-Phone_Credits =  Number_of_Tracers + Number_of_Tracing_Supervisors + Number_of_Tracing_Team_Leads
-Phone_Credit_Costs = 5 # Daily
+Tracers_Day_N = Max_Number_of_Tracers # This can vary. Set to max for now.
+# We assume supervisors and team leads are empleyed the entire time we do this, regardless of varying number of tracers.
 
-Smart_Phones = Number_of_Tracers/10 # For any tracers without phones. Minimal.
+Phone_Credits_Day_N =  Tracers_Day_N + Number_of_Tracing_Supervisors + Number_of_Tracing_Team_Leads
+Phone_Credit_Costs = 5 # Daily, per person.
+
+Smart_Phones = Max_Number_of_Tracers/10 # For any tracers without phones. Fairly minimal percentage.
 
 Rural_Pct = 0.17
 Daily_Travel_Cost = 10
-Travelers = (Number_of_Tracers * Rural_Pct) + Number_of_Tracing_Supervisors + Number_of_Tracing_Team_Leads
+Travelers = (Max_Number_of_Tracers * Rural_Pct) + Number_of_Tracing_Supervisors + Number_of_Tracing_Team_Leads
 
 # Testing Costs
 
@@ -63,7 +42,7 @@ Shifts_per_Day = 2
 Hours_per_Shift = 9
 Time_per_Batch = 0.5 # Half Hour batches
 Tests_per_Batch = 96
-Tests_per_Machine_per_Hour =  Tests_per_Batch / Time_per_Batch
+Tests_per_Machine_per_Hour = Tests_per_Batch / Time_per_Batch
 Tests_per_Machine_per_Shift = Tests_per_Machine_per_Hour * Hours_per_Shift
 Tests_per_Machine_per_Day = Tests_per_Machine_per_Shift * Shifts_per_Day
 
@@ -91,9 +70,19 @@ Lab_Supervisor_Salary = 300 # Per Day
 Tests_Day_N = Maximum_Daily_Tests # This will be replaced with the daily number.
 
 Lab_Techs_Day_N = Tests_Day_N / (Tests_per_Machine_per_Shift * Lab_Techs_Per_Machine_Per_Shift)
-Labs_for_Day_N =  Tests_Day_N / (Tests_per_Machine_per_Day * PCR_Machines_Per_Lab)
+Labs_for_Day_N = Tests_Day_N / (Tests_per_Machine_per_Day * PCR_Machines_Per_Lab)
 
 Cost_per_Test_Kit = 4 # 3.50 for the testing, 0.50 for the home test kit.
 
-Cost_Day_N =
+Testing_Cost_Day_N = 0 #FIXME
 
+
+
+# NHS Costs
+NHS_death_cost = 42 #FIXME
+NHS_ICU_case_cost = 29335
+NHS_nonICU_hospitalization_cost = 2422
+Lost_work_daily_cost = 119
+Lost_productivity_death = 358
+Lost_productivity_ICU = 2509 # Higher than death?
+# Productivity cost of hospital (non-ICU) case
