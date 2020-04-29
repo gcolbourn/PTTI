@@ -155,7 +155,7 @@ def seirxud_abm_gill(tmax=10,
             # Contact between a random SU and a random IU
             si = random_agent_i(states, diagnosed, STATE_S, False)
             ii = random_agent_i(states, diagnosed, STATE_I, False)
-            contactM[si,ii] = True
+            contactM[si, ii] = True
             if np.random.random() <= beta:
                 states[si] = STATE_E
         elif rn < wp[1]:
@@ -165,7 +165,7 @@ def seirxud_abm_gill(tmax=10,
         elif rn < wp[2]:
             # I becomes R
             ii = random_agent_i(states, diagnosed, STATE_I)
-            contactM[:,ii] = False
+            contactM[:, ii] = False
             states[ii] = STATE_R
         elif rn < wp[3]:
             # Diagnosis
@@ -252,9 +252,14 @@ class SEIRxUD(object):
         else:
             return intptrajs
 
-    def make_cmodel(self, etadamp=1):
+    def make_cmodel(self, etadamp=1, has_memory_states=False):
 
-        cm = CModel(['SU', 'SD', 'EU', 'ED', 'IU', 'ID', 'RU', 'RD'])
+        states = ['SU', 'SD', 'EU', 'ED', 'IU', 'ID', 'RU', 'RD']
+
+        if has_memory_states:
+            states += ['PCIS', 'PCIR']
+
+        cm = CModel(states)
 
         N = self.N
         beta = self.params['beta']
@@ -267,7 +272,6 @@ class SEIRxUD(object):
         kappa = self.params['kappa']
 
         cm.set_coupling_rate('SU*IU:SU=>EU', beta*c/N)
-        cm.set_coupling_rate('SU*IU:SU=>SD', chi*eta*c/gamma*(1-beta)*theta/N)
         cm.set_coupling_rate('SD:SD=>SU', kappa)
 
         cm.set_coupling_rate('EU:EU=>IU', alpha)
@@ -278,21 +282,43 @@ class SEIRxUD(object):
         cm.set_coupling_rate('ID:ID=>RD', gamma)
         cm.set_coupling_rate('IU:IU=>ID', theta*(1+eta*chi))
 
-        cm.set_coupling_rate('RU*IU:RU=>RD', chi*eta*c/gamma*theta/N)
         cm.set_coupling_rate('RD:RD=>RU', kappa)
+
+        # Now the stuff that depends on memory
+        if has_memory_states:
+
+            cm.set_coupling_rate('IU*SU:=>PCIS', c*(1-beta)/N)
+            cm.set_coupling_rate('PCIS:PCIS=>', gamma)
+
+            cm.set_coupling_rate('IU*RU:=>PCIR', c/N)
+            cm.set_coupling_rate('PCIR:PCIR=>', gamma)
+
+            cm.set_coupling_rate('PCIS:SU=>SD', chi*eta*theta)
+            cm.set_coupling_rate('PCIR:RU=>RD', chi*eta*theta)
+        else:
+            cm.set_coupling_rate('SU*IU:SU=>SD', chi*eta *
+                                 c/(gamma+theta*(1+eta*chi))*(1-beta)*theta/N)
+            cm.set_coupling_rate('RU*IU:RU=>RD', chi*eta *
+                                 c/(gamma+theta*(1+eta*chi))*theta/N)
 
         self.cm = cm
 
-    def run_cmodel(self, t0=0, y0=None,  etadamp=1):
+    def run_cmodel(self, t0=0, y0=None, etadamp=1, has_memory_states=False):
 
         t0i = np.where(self.t >= t0)[0][0]
 
-        self.make_cmodel(etadamp)
+        self.make_cmodel(etadamp, has_memory_states)
 
+        L = 8 + 2*has_memory_states
         if y0 is None:
-            y0 = np.zeros(8)
+            y0 = np.zeros(L)
             y0[INDEX_SU] = self.N*(1-self.I0)
             y0[INDEX_IU] = self.N*self.I0
+        else:
+            if L != len(y0):
+                raise ValueError(('Invalid size of starting state! Use {0}'
+                                  ' for simulations with{1} memory states').format(L,
+                                                                                   '' if has_memory_states else 'out'))
 
         return self.cm.integrate(self.t[t0i:], y0)
 
