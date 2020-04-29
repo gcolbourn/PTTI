@@ -1,5 +1,6 @@
 import numpy as np
 from numba import jit
+from math import sqrt
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 from cpyment import CModel
@@ -257,7 +258,7 @@ class SEIRxUD(object):
         states = ['SU', 'SD', 'EU', 'ED', 'IU', 'ID', 'RU', 'RD']
 
         if has_memory_states:
-            states += ['PCIS', 'PCIR']
+            states += ['CIS', 'CIE', 'CIR']
 
         cm = CModel(states)
 
@@ -276,7 +277,7 @@ class SEIRxUD(object):
 
         cm.set_coupling_rate('EU:EU=>IU', alpha)
         cm.set_coupling_rate('ED:ED=>ID', alpha)
-        cm.set_coupling_rate('EU:EU=>ED', eta*chi*theta)
+#        cm.set_coupling_rate('EU:EU=>ED', eta*chi*theta)
 
         cm.set_coupling_rate('IU:IU=>RU', gamma)
         cm.set_coupling_rate('ID:ID=>RD', gamma)
@@ -287,14 +288,23 @@ class SEIRxUD(object):
         # Now the stuff that depends on memory
         if has_memory_states:
 
-            cm.set_coupling_rate('IU*SU:=>PCIS', c*(1-beta)/N)
-            cm.set_coupling_rate('PCIS:PCIS=>', gamma)
+            cm.set_coupling_rate('IU*SU:=>CIS', c*(1-beta)/N)
+            cm.set_coupling_rate('CIS:CIS=>', gamma)
 
-            cm.set_coupling_rate('IU*RU:=>PCIR', c/N)
-            cm.set_coupling_rate('PCIR:PCIR=>', gamma)
+            ## use \beta U(S) to make memory of exposure because U(E) is
+            ## zero at the beginning
+            cm.set_coupling_rate('IU*SU:=>CIE', c*beta/N)
+            ## alternatively, we know that E must have been exposed so it
+            ## must just have happened at one of these events
+#            cm.set_coupling_rate('IU*EU:=>CIE', c/N)
+            cm.set_coupling_rate('CIE:CIE=>', gamma)
 
-            cm.set_coupling_rate('PCIS:SU=>SD', chi*eta*theta)
-            cm.set_coupling_rate('PCIR:RU=>RD', chi*eta*theta)
+            cm.set_coupling_rate('IU*RU:=>CIR', c/N)
+            cm.set_coupling_rate('CIR:CIR=>', gamma)
+
+            cm.set_coupling_rate('CIS:SU=>SD', chi*eta*theta)
+            cm.set_coupling_rate('CIE:EU=>ED', chi*eta*theta)
+            cm.set_coupling_rate('CIR:RU=>RD', chi*eta*theta)
         else:
             cm.set_coupling_rate('SU*IU:SU=>SD', chi*eta *
                                  c/(gamma+theta*(1+eta*chi))*(1-beta)*theta/N)
@@ -309,7 +319,7 @@ class SEIRxUD(object):
 
         self.make_cmodel(etadamp, has_memory_states)
 
-        L = 8 + 2*has_memory_states
+        L = 8 + 3*has_memory_states
         if y0 is None:
             y0 = np.zeros(L)
             y0[INDEX_SU] = self.N*(1-self.I0)
