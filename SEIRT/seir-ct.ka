@@ -42,13 +42,13 @@
 //////////////////////////////////////////////////////////////////////////////
 // Tracing happens when (1) there is an available tracing particle, and (2) //
 // in proportion to the number of diagnosed infectious individuals. The     //
-// effect of tracing is diagnosis.                                          //
+// effect of tracing is diagnosis. Tracing consumes the particle.           //
 //////////////////////////////////////////////////////////////////////////////
 
-'tracing_S'     P(s{s}, d{u/d}), P(s{i}, d{d}), C(s{s}) @ theta*chi*eta/N
-'tracing_E'     P(s{e}, d{u/d}), P(s{i}, d{d}), C(s{e}) @ theta*chi*eta/N
-'tracing_I'     P(s{i}, d{u/d}), P(s{i}, d{d}), C(s{i}) @ theta*chi*eta/N
-'tracing_R'     P(s{r}, d{u/d}), P(s{i}, d{d}), C(s{r}) @ theta*chi*eta/N
+'tracing_S'     P(s{s}, d{u}), P(s{i}, d{d}), C(s{s}) -> P(s{s}, d{d}), P(s{i}, d{d}), . @ theta*chi*eta/N
+'tracing_E'     P(s{e}, d{u}), P(s{i}, d{d}), C(s{e}) -> P(s{e}, d{d}), P(s{i}, d{d}), . @ theta*chi*eta/N
+'tracing_I'     P(s{i}, d{u}), P(s{i}, d{d}), C(s{i}) -> P(s{i}, d{d}), P(s{i}, d{d}), . @ theta*chi*eta/N
+'tracing_R'     P(s{r}, d{u}), P(s{i}, d{d}), C(s{r}) -> P(s{r}, d{d}), P(s{i}, d{d}), . @ theta*chi*eta/N
 
 ///////////////////////
 // Leaving isolation //
@@ -59,7 +59,7 @@
 //////////////////////////////////////
 // Degradation of tracing particles //
 //////////////////////////////////////
-'degradation'   C() -> . @ gamma + theta*(1 + chi*eta)
+'degradation'   C() -> . @ gamma 
 
 /////////////////////
 //// Observables ////
@@ -72,6 +72,7 @@
 %obs: 'DI'   |P(s{i}, d{d})|        // Infected
 %obs: 'UR'   |P(s{r}, d{u})|        // Recovered
 %obs: 'DR'   |P(s{r}, d{d})|        // Recovered
+%obs: 'C'    |C()|                  // Tracable
 
 ////////////////////////
 //// Initialisation ////
@@ -82,6 +83,3 @@
 ///////////////////////
 //// Perturbations ////
 ///////////////////////
-
-// stop the simulation after 300 days
-%mod: alarm 500 do $STOP;
