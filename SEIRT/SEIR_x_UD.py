@@ -27,12 +27,14 @@ INDEX_ED = 3
 INDEX_ID = 5
 INDEX_RD = 7
 
+INDEX_CT = 8
+
 log.basicConfig(stream=sys.stdout, level=log.INFO,
                 format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 @jit(nopython=True)
-def count_states(states, diagnosed):
+def count_states(states, diagnosed, traceable):
     SU = np.sum((states == STATE_S)*(diagnosed == 0))
     SD = np.sum((states == STATE_S)*diagnosed)
     EU = np.sum((states == STATE_E)*(diagnosed == 0))
@@ -41,7 +43,8 @@ def count_states(states, diagnosed):
     ID = np.sum((states == STATE_I)*diagnosed)
     RU = np.sum((states == STATE_R)*(diagnosed == 0))
     RD = np.sum((states == STATE_R)*diagnosed)
-    return SU, SD, EU, ED, IU, ID, RU, RD
+    CT = np.sum(traceable)
+    return SU, SD, EU, ED, IU, ID, RU, RD, CT
 
 
 @jit(nopython=True)
@@ -112,16 +115,13 @@ def seirxud_abm_gill(tmax=10,
     t = 0
     while t < tmax:
 
-        counts = count_states(states, diagnosed)
+        counts = count_states(states, diagnosed, traceable)
         traj.append(counts)
         times.append(t)
         if return_pcis:
             pcis.append(np.sum(np.sum(contactM, axis=0) > 0)/N)
         else:
             pcis.append(0)
-
-        # Traceable agents?
-        CT = np.sum(traceable)
 
         E = counts[INDEX_EU] + counts[INDEX_ED]
         I = counts[INDEX_IU] + counts[INDEX_ID]
@@ -139,7 +139,7 @@ def seirxud_abm_gill(tmax=10,
         # Diagnosed R is released
         wRDRU = kappa*counts[INDEX_RD]
         # Someone who's traceable gets quarantined
-        wCT = chi*CT
+        wCT = chi*counts[INDEX_CT]
 
         Wtot = wSIc + wEI + wIR + wIUID + wSDSU + wRDRU + wCT
         if Wtot <= 0:
@@ -192,7 +192,7 @@ def seirxud_abm_gill(tmax=10,
 
         t += dt
 
-    counts = count_states(states, diagnosed)
+    counts = count_states(states, diagnosed, traceable)
     traj.append(counts)
     times.append(t)
     if return_pcis:
@@ -288,22 +288,22 @@ class SEIRxUD(object):
         # Now the stuff that depends on memory
         if has_memory_states:
 
-            taudec = gamma+theta*(1+eta*chi)
-
             cm.set_coupling_rate('IU*SU:=>CIS', c*(1-beta)/N)
             cm.set_coupling_rate('IU*CIS:CIS=>CIE', c*beta/N)
-            cm.set_coupling_rate('CIS:CIS=>', taudec)
+            cm.set_coupling_rate('CIS:CIS=>', gamma+theta*eta*chi)
+            cm.set_coupling_rate('CIS*CIS:CIS=>', chi*(1-(1-eta)**2)*theta/N)
 
             cm.set_coupling_rate('IU*SU:=>CIE', c*beta/N)
             cm.set_coupling_rate('CIE:CIE=>CII', alpha)
-            cm.set_coupling_rate('CIE:CIE=>', taudec)
+            cm.set_coupling_rate('CIE:CIE=>', gamma+theta*eta*chi)
 
             cm.set_coupling_rate('IU*IU:=>CII', c/N)
             cm.set_coupling_rate('CII:CII=>CIR', gamma)
-            cm.set_coupling_rate('CII:CII=>', taudec)
+            cm.set_coupling_rate('CII:CII=>', gamma+theta*(1+eta*chi))
 
             cm.set_coupling_rate('IU*RU:=>CIR', c/N)
-            cm.set_coupling_rate('CIR:CIR=>', taudec)
+            cm.set_coupling_rate('CIR:CIR=>', gamma+theta*eta*chi)
+            cm.set_coupling_rate('CIR*CIR:CIR=>', chi*(1-(1-eta)**2)*theta/N)
 
             cm.set_coupling_rate('CIS:SU=>SD', chi*eta*theta)
             cm.set_coupling_rate('CIS*CIS:SU=>SD', chi*(1-(1-eta)**2)*theta/N)
