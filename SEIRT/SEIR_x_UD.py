@@ -10,6 +10,7 @@ import yaml
 import time
 import logging as log
 import sys
+import kappy
 
 # States
 STATE_S = 0
@@ -336,6 +337,36 @@ class SEIRxUD(object):
 
         return self.cm.integrate(self.t[t0i:], y0)
 
+    def run_kappa(self, samples=10):
+        kappa_text = "%var: N\t{0}\n%var: Init_I\tN*{1}\n%var: Init_S\tN - Init_I\n".format(self.N, self.I0)
+        params = ("c", "alpha", "beta", "gamma", "theta", "eta", "chi", "kappa")
+        kappa_text += "\n".join("%var: {0}\t{1}".format(k, self.params[k]) for k in params)
+        with open("seir-ct.ka") as fp:
+            kappa_text += "\n" + fp.read()
+
+        tmax = self.t[-1]
+        stepsize = tmax / len(self.t)
+
+        trajs = []
+        for i in range(samples):
+            log.info('Sampling trajectory {0}/{1}'.format(i+1, samples))
+
+            client = kappy.KappaStd()
+            client.add_model_string(kappa_text)
+            client.project_parse()
+
+            client.simulation_start(kappy.SimulationParameter(stepsize, "[T] > {0}".format(tmax)))
+            client.wait_for_simulation_stop()
+
+            plot = client.simulation_plot()
+            series = plot["series"]
+            series.reverse()  ## why on earth does Kappa give this return backwards!?
+            traj = np.array(series)
+            traj = traj[:-1, 1:].T ## and Simone likes fortran for some reason 
+
+            trajs.append(traj)
+
+        return np.array(trajs)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("SEIRT Agent-Based Simulator")
@@ -362,6 +393,8 @@ if __name__ == '__main__':
                         action="store_true", help="Run ODE simulation")
     parser.add_argument("--abm", default=False, action="store_true",
                         help="Run mechanistic ABM simulation")
+    parser.add_argument("--kappa", default=False, action="store_true",
+                        help="Run the Kappa simulation")
     parser.add_argument("--samples", type=int, default=10,
                         help="Number of samples for ABM")
     parser.add_argument("--yaml", type=str, default=None,
@@ -374,7 +407,7 @@ if __name__ == '__main__':
                         action="store_true", help="Generate plots")
     parser.add_argument("--memory", default=False,
                         action="store_true", help="Use memory states in ODE model")
-    
+
     args = parser.parse_args()
 
     params = {
@@ -411,7 +444,13 @@ if __name__ == '__main__':
     if args.abm:
         sim = SEIRxUD(**params)
         log.info("Running mechanistic agent-based model")
-        trajs = sim.run_abm()  # args.samples)
+        trajs = sim.run_abm(samples=args.samples)
+        sim.t.dump("{0}.t".format(args.output))
+        trajs.dump("{0}.trajs".format(args.output))
+    if args.kappa:
+        sim = SEIRxUD(**params)
+        log.info("Running Kappa simulation")
+        trajs = sim.run_kappa(samples=args.samples)
         sim.t.dump("{0}.t".format(args.output))
         trajs.dump("{0}.trajs".format(args.output))
     if args.plot:

@@ -39,14 +39,12 @@
 ///////////////////////////////
 'testing'       P(s{i}, d{u/d}) @ theta
 
-//////////////////////////////////////////////////////////////////////////////////////////
-// Trace individuals in a biased way. Exposed and  Infected individuals are more likely //
-// to be traced. Tracing is a kind of presumptive diagnosis.                            //
-//                                                                                      //
-// Tracing for E and I individuals is different from tracing for S and R individuals.   //
-// For E and I, we know they must have been in contact with an I in in the past. For S  //
-// and R, their probability of being traced depends on the number of Is in circulation  //
-//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+// Tracing happens when (1) there is an available tracing particle, and (2) //
+// in proportion to the number of diagnosed infectious individuals. The     //
+// effect of tracing is diagnosis.                                          //
+//////////////////////////////////////////////////////////////////////////////
+
 'tracing_S'     P(s{s}, d{u/d}), P(s{i}, d{d}), C(s{s}) @ theta*chi*eta/N
 'tracing_E'     P(s{e}, d{u/d}), P(s{i}, d{d}), C(s{e}) @ theta*chi*eta/N
 'tracing_I'     P(s{i}, d{u/d}), P(s{i}, d{d}), C(s{i}) @ theta*chi*eta/N
