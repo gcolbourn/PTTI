@@ -277,7 +277,6 @@ class SEIRxUD(object):
 
         cm.set_coupling_rate('EU:EU=>IU', alpha)
         cm.set_coupling_rate('ED:ED=>ID', alpha)
-#        cm.set_coupling_rate('EU:EU=>ED', eta*chi*theta)
 
         cm.set_coupling_rate('IU:IU=>RU', gamma)
         cm.set_coupling_rate('ID:ID=>RD', gamma)
@@ -310,6 +309,7 @@ class SEIRxUD(object):
                                  c/(gamma+theta*(1+eta*chi))*(1-beta)*theta/N)
             cm.set_coupling_rate('RU*IU:RU=>RD', chi*eta *
                                  c/(gamma+theta*(1+eta*chi))*theta/N)
+            cm.set_coupling_rate('EU:EU=>ED', eta*chi*theta)
 
         self.cm = cm
 
