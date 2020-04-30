@@ -370,6 +370,9 @@ if __name__ == '__main__':
                         default="simdata", help="Output file")
     parser.add_argument("--plot", default=False,
                         action="store_true", help="Generate plots")
+    parser.add_argument("--memory", default=False,
+                        action="store_true", help="Use memory states in ODE model")
+    
     args = parser.parse_args()
 
     params = {
@@ -397,11 +400,11 @@ if __name__ == '__main__':
     if args.ode:
         sim = SEIRxUD(**params)
         log.info("Running deterministic model with contact tracing")
-        traj = sim.run_cmodel()
+        traj = sim.run_cmodel(has_memory_states=args.memory)
         sim.t.dump("{0}.t".format(args.output))
         traj["y"].dump("{0}.y".format(args.output))
         log.info("Running deterministic model without contact tracing")
-        trajNoCT = sim.run_cmodel(etadamp=0)
+        trajNoCT = sim.run_cmodel(etadamp=0, has_memory_states=args.memory)
         trajNoCT["y"].dump(args.output + ".n")
     if args.abm:
         sim = SEIRxUD(**params)
