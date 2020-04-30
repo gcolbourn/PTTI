@@ -1,0 +1,15 @@
+///////////////////
+//// Variables ////
+///////////////////
+%var: N         2500    // population size
+%var: Init_I    N*0.01  // start out with 1% of population infected
+%var: Init_S    N - Init_I
+
+%var: c         13      // contact rate per unit time
+%var: beta      0.018   // infection rate per contact
+%var: alpha     0.2     // progression rate from exposed to infectious
+%var: gamma     0.0714  // infectious period
+%var: theta     0.1     // testing rate (implies isolation)
+%var: kappa     0.03    // rate of leaving isolation
+%var: eta       0.1     // success rate of contact tracing
+%var: chi       0.1     // rate in contacts per day of contact tracing
