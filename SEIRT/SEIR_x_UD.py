@@ -365,7 +365,7 @@ class SEIRxUD(object):
             traj = traj[:-1, 1:].T ## and Simone likes fortran for some reason 
 
             ## pad because Kappa will stop if no more transitions
-            traj = np.pad(traj, ((0,0), (0, self.t.shape[0] - traj.shape[1])), "constant")
+            traj = np.pad(traj, ((0,0), (0, self.t.shape[0] - traj.shape[1])), "edge")
 
             trajs.append(traj)
 
