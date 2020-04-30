@@ -288,20 +288,22 @@ class SEIRxUD(object):
         # Now the stuff that depends on memory
         if has_memory_states:
 
+            taudec = gamma+theta*(1+eta*chi)
+
             cm.set_coupling_rate('IU*SU:=>CIS', c*(1-beta)/N)
             cm.set_coupling_rate('IU*CIS:CIS=>CIE', c*beta/N)
-            cm.set_coupling_rate('CIS:CIS=>', gamma+theta*(1+eta*chi))
+            cm.set_coupling_rate('CIS:CIS=>', taudec)
 
             cm.set_coupling_rate('IU*SU:=>CIE', c*beta/N)
             cm.set_coupling_rate('CIE:CIE=>CII', alpha)
-            cm.set_coupling_rate('CIE:CIE=>', gamma+theta*(1+eta*chi))
+            cm.set_coupling_rate('CIE:CIE=>', taudec)
 
             cm.set_coupling_rate('IU*IU:=>CII', c/N)
             cm.set_coupling_rate('CII:CII=>CIR', gamma)
-            cm.set_coupling_rate('CII:CII=>', gamma+theta*(1+eta*chi))
+            cm.set_coupling_rate('CII:CII=>', taudec)
 
             cm.set_coupling_rate('IU*RU:=>CIR', c/N)
-            cm.set_coupling_rate('CIR:CIR=>', gamma+theta*(1+eta*chi))
+            cm.set_coupling_rate('CIR:CIR=>', taudec)
 
             cm.set_coupling_rate('CIS:SU=>SD', chi*eta*theta)
             cm.set_coupling_rate('CIS*CIS:SU=>SD', chi*(1-(1-eta)**2)*theta/N)
