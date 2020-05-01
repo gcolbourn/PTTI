@@ -364,12 +364,36 @@ class SEIRxUD(object):
             traj = np.array(series)
             traj = traj[:-1, 1:].T ## and Simone likes fortran for some reason 
 
-            ## pad because Kappa will stop if no more transitions
-            traj = np.pad(traj, ((0,0), (0, self.t.shape[0] - traj.shape[1])), "edge")
+            if traj.shape[1] > self.t.shape[0]:
+                traj = traj[:,:self.t.shape[0]]
+            else:
+                ## pad because Kappa will stop if no more transitions
+                traj = np.pad(traj, ((0,0), (0, self.t.shape[0] - traj.shape[1])), "edge")
 
             trajs.append(traj)
 
         return np.array(trajs)
+
+    def rseries(self, traj):
+        """
+        Compute the function R(t) for the reproduction number according to the provided
+        time-series for the susceptible population. Taken from S9.3 of
+        https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6002118/
+        """
+        beta, c, gamma, N = self.params["beta"], self.params["c"], self.params["gamma"], self.N
+        n = len(self.t)
+        ker = np.exp(-gamma*self.t)
+
+        SU = traj[:,INDEX_SU]
+        IU = traj[:,INDEX_IU]
+        ID = traj[:,INDEX_ID]
+        X = SU*IU/(IU+ID)
+
+        Rs = []
+        for i, t in enumerate(self.t):
+            x = np.pad(X, (n-i-1, 0), mode="edge")
+            Rs.append(np.trapz(beta*c*x[:n]*ker[::-1]/N, self.t))
+        return np.array(Rs)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("SEIRT Agent-Based Simulator")
