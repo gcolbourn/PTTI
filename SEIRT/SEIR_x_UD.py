@@ -10,7 +10,10 @@ import yaml
 import time
 import logging as log
 import sys
-import kappy
+try:
+    import kappy
+except ImportError:
+    kappy = None
 
 # States
 STATE_S = 0
@@ -338,6 +341,10 @@ class SEIRxUD(object):
         return self.cm.integrate(self.t[t0i:], y0)
 
     def run_kappa(self, samples=10):
+
+        if kappy is None:
+            raise RuntimeError('Can not run kappa model without a kappy installation')
+
         kappa_text = "%var: N\t{0}\n%var: Init_I\tN*{1}\n%var: Init_S\tN - Init_I\n".format(self.N, self.I0)
         params = ("c", "alpha", "beta", "gamma", "theta", "eta", "chi", "kappa")
         kappa_text += "\n".join("%var: {0}\t{1}".format(k, self.params[k]) for k in params)
