@@ -1,5 +1,6 @@
 import numpy as np
 from numba import jit
+from math import sqrt
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 from cpyment import CModel
@@ -9,6 +10,7 @@ import yaml
 import time
 import logging as log
 import sys
+import kappy
 
 # States
 STATE_S = 0
@@ -26,12 +28,14 @@ INDEX_ED = 3
 INDEX_ID = 5
 INDEX_RD = 7
 
+INDEX_CT = 8
+
 log.basicConfig(stream=sys.stdout, level=log.INFO,
                 format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 @jit(nopython=True)
-def count_states(states, diagnosed):
+def count_states(states, diagnosed, traceable):
     SU = np.sum((states == STATE_S)*(diagnosed == 0))
     SD = np.sum((states == STATE_S)*diagnosed)
     EU = np.sum((states == STATE_E)*(diagnosed == 0))
@@ -40,7 +44,8 @@ def count_states(states, diagnosed):
     ID = np.sum((states == STATE_I)*diagnosed)
     RU = np.sum((states == STATE_R)*(diagnosed == 0))
     RD = np.sum((states == STATE_R)*diagnosed)
-    return SU, SD, EU, ED, IU, ID, RU, RD
+    CT = np.sum(traceable)
+    return SU, SD, EU, ED, IU, ID, RU, RD, CT
 
 
 @jit(nopython=True)
@@ -111,16 +116,13 @@ def seirxud_abm_gill(tmax=10,
     t = 0
     while t < tmax:
 
-        counts = count_states(states, diagnosed)
+        counts = count_states(states, diagnosed, traceable)
         traj.append(counts)
         times.append(t)
         if return_pcis:
             pcis.append(np.sum(np.sum(contactM, axis=0) > 0)/N)
         else:
             pcis.append(0)
-
-        # Traceable agents?
-        CT = np.sum(traceable)
 
         E = counts[INDEX_EU] + counts[INDEX_ED]
         I = counts[INDEX_IU] + counts[INDEX_ID]
@@ -138,7 +140,7 @@ def seirxud_abm_gill(tmax=10,
         # Diagnosed R is released
         wRDRU = kappa*counts[INDEX_RD]
         # Someone who's traceable gets quarantined
-        wCT = chi*CT
+        wCT = chi*counts[INDEX_CT]
 
         Wtot = wSIc + wEI + wIR + wIUID + wSDSU + wRDRU + wCT
         if Wtot <= 0:
@@ -155,7 +157,7 @@ def seirxud_abm_gill(tmax=10,
             # Contact between a random SU and a random IU
             si = random_agent_i(states, diagnosed, STATE_S, False)
             ii = random_agent_i(states, diagnosed, STATE_I, False)
-            contactM[si,ii] = True
+            contactM[si, ii] = True
             if np.random.random() <= beta:
                 states[si] = STATE_E
         elif rn < wp[1]:
@@ -165,7 +167,7 @@ def seirxud_abm_gill(tmax=10,
         elif rn < wp[2]:
             # I becomes R
             ii = random_agent_i(states, diagnosed, STATE_I)
-            contactM[:,ii] = False
+            contactM[:, ii] = False
             states[ii] = STATE_R
         elif rn < wp[3]:
             # Diagnosis
@@ -191,7 +193,7 @@ def seirxud_abm_gill(tmax=10,
 
         t += dt
 
-    counts = count_states(states, diagnosed)
+    counts = count_states(states, diagnosed, traceable)
     traj.append(counts)
     times.append(t)
     if return_pcis:
@@ -252,9 +254,14 @@ class SEIRxUD(object):
         else:
             return intptrajs
 
-    def make_cmodel(self, etadamp=1):
+    def make_cmodel(self, etadamp=1, has_memory_states=False):
 
-        cm = CModel(['SU', 'SD', 'EU', 'ED', 'IU', 'ID', 'RU', 'RD'])
+        states = ['SU', 'SD', 'EU', 'ED', 'IU', 'ID', 'RU', 'RD']
+
+        if has_memory_states:
+            states += ['CIS', 'CIE', 'CII', 'CIR']
+
+        cm = CModel(states)
 
         N = self.N
         beta = self.params['beta']
@@ -267,35 +274,102 @@ class SEIRxUD(object):
         kappa = self.params['kappa']
 
         cm.set_coupling_rate('SU*IU:SU=>EU', beta*c/N)
-        cm.set_coupling_rate('SU*IU:SU=>SD', chi*eta*c/gamma*(1-beta)*theta/N)
         cm.set_coupling_rate('SD:SD=>SU', kappa)
 
         cm.set_coupling_rate('EU:EU=>IU', alpha)
         cm.set_coupling_rate('ED:ED=>ID', alpha)
-        cm.set_coupling_rate('EU:EU=>ED', eta*chi*theta)
 
         cm.set_coupling_rate('IU:IU=>RU', gamma)
         cm.set_coupling_rate('ID:ID=>RD', gamma)
-        cm.set_coupling_rate('IU:IU=>ID', theta*(1+eta*chi))
 
-        cm.set_coupling_rate('RU*IU:RU=>RD', chi*eta*c/gamma*theta/N)
         cm.set_coupling_rate('RD:RD=>RU', kappa)
+
+        cm.set_coupling_rate('EU:EU=>ED', eta*chi*theta)
+        cm.set_coupling_rate('IU:IU=>ID', theta*(1+eta*chi))
+        # Now the stuff that depends on memory
+        if has_memory_states:
+
+            cm.set_coupling_rate('IU*SU:=>CIS', c*(1-beta)/N)
+            cm.set_coupling_rate('IU*CIS:CIS=>CIE', c*beta/N)
+            cm.set_coupling_rate('CIS:CIS=>', gamma+theta*eta*chi)
+            cm.set_coupling_rate('CIS*CIS:CIS=>', chi*(1-(1-eta)**2)*theta/N)
+
+            cm.set_coupling_rate('IU*SU:=>CIE', c*beta/N)
+            cm.set_coupling_rate('CIE:CIE=>CII', alpha)
+            cm.set_coupling_rate('CIE:CIE=>', gamma+theta*eta*chi)
+
+            cm.set_coupling_rate('IU*IU:=>CII', c/N)
+            cm.set_coupling_rate('CII:CII=>CIR', gamma)
+            cm.set_coupling_rate('CII:CII=>', gamma+theta*(1+eta*chi))
+
+            cm.set_coupling_rate('IU*RU:=>CIR', c/N)
+            cm.set_coupling_rate('CIR:CIR=>', gamma+theta*eta*chi)
+            cm.set_coupling_rate('CIR*CIR:CIR=>', chi*(1-(1-eta)**2)*theta/N)
+
+            cm.set_coupling_rate('CIS:SU=>SD', chi*eta*theta)
+            cm.set_coupling_rate('CIS*CIS:SU=>SD', chi*(1-(1-eta)**2)*theta/N)
+            cm.set_coupling_rate('CIR:RU=>RD', chi*eta*theta)
+            cm.set_coupling_rate('CIR*CIR:RU=>RD', chi*(1-(1-eta)**2)*theta/N)
+        else:
+            cm.set_coupling_rate('SU*IU:SU=>SD', chi*eta *
+                                 c/(gamma+theta*(1+eta*chi))*(1-beta)*theta/N)
+            cm.set_coupling_rate('RU*IU:RU=>RD', chi*eta *
+                                 c/(gamma+theta*(1+eta*chi))*theta/N)
 
         self.cm = cm
 
-    def run_cmodel(self, t0=0, y0=None,  etadamp=1):
+    def run_cmodel(self, t0=0, y0=None, etadamp=1, has_memory_states=False):
 
         t0i = np.where(self.t >= t0)[0][0]
 
-        self.make_cmodel(etadamp)
+        self.make_cmodel(etadamp, has_memory_states)
 
+        L = 8 + 4*has_memory_states
         if y0 is None:
-            y0 = np.zeros(8)
+            y0 = np.zeros(L)
             y0[INDEX_SU] = self.N*(1-self.I0)
             y0[INDEX_IU] = self.N*self.I0
+        else:
+            if L != len(y0):
+                raise ValueError(('Invalid size of starting state! Use {0}'
+                                  ' for simulations with{1} memory states').format(L,
+                                                                                   '' if has_memory_states else 'out'))
 
         return self.cm.integrate(self.t[t0i:], y0)
 
+    def run_kappa(self, samples=10):
+        kappa_text = "%var: N\t{0}\n%var: Init_I\tN*{1}\n%var: Init_S\tN - Init_I\n".format(self.N, self.I0)
+        params = ("c", "alpha", "beta", "gamma", "theta", "eta", "chi", "kappa")
+        kappa_text += "\n".join("%var: {0}\t{1}".format(k, self.params[k]) for k in params)
+        with open("seir-ct.ka") as fp:
+            kappa_text += "\n" + fp.read()
+
+        tmax = self.t[-1]
+        stepsize = tmax / len(self.t)
+
+        trajs = []
+        for i in range(samples):
+            log.info('Sampling trajectory {0}/{1}'.format(i+1, samples))
+
+            client = kappy.KappaStd()
+            client.add_model_string(kappa_text)
+            client.project_parse()
+
+            client.simulation_start(kappy.SimulationParameter(stepsize, "[T] > {0}".format(tmax)))
+            client.wait_for_simulation_stop()
+
+            plot = client.simulation_plot()
+            series = plot["series"]
+            series.reverse()  ## why on earth does Kappa give this return backwards!?
+            traj = np.array(series)
+            traj = traj[:-1, 1:].T ## and Simone likes fortran for some reason 
+
+            ## pad because Kappa will stop if no more transitions
+            traj = np.pad(traj, ((0,0), (0, self.t.shape[0] - traj.shape[1])), "edge")
+
+            trajs.append(traj)
+
+        return np.array(trajs)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("SEIRT Agent-Based Simulator")
@@ -322,6 +396,8 @@ if __name__ == '__main__':
                         action="store_true", help="Run ODE simulation")
     parser.add_argument("--abm", default=False, action="store_true",
                         help="Run mechanistic ABM simulation")
+    parser.add_argument("--kappa", default=False, action="store_true",
+                        help="Run the Kappa simulation")
     parser.add_argument("--samples", type=int, default=10,
                         help="Number of samples for ABM")
     parser.add_argument("--yaml", type=str, default=None,
@@ -332,6 +408,9 @@ if __name__ == '__main__':
                         default="simdata", help="Output file")
     parser.add_argument("--plot", default=False,
                         action="store_true", help="Generate plots")
+    parser.add_argument("--memory", default=False,
+                        action="store_true", help="Use memory states in ODE model")
+
     args = parser.parse_args()
 
     params = {
@@ -359,16 +438,22 @@ if __name__ == '__main__':
     if args.ode:
         sim = SEIRxUD(**params)
         log.info("Running deterministic model with contact tracing")
-        traj = sim.run_cmodel()
+        traj = sim.run_cmodel(has_memory_states=args.memory)
         sim.t.dump("{0}.t".format(args.output))
         traj["y"].dump("{0}.y".format(args.output))
         log.info("Running deterministic model without contact tracing")
-        trajNoCT = sim.run_cmodel(etadamp=0)
+        trajNoCT = sim.run_cmodel(etadamp=0, has_memory_states=args.memory)
         trajNoCT["y"].dump(args.output + ".n")
     if args.abm:
         sim = SEIRxUD(**params)
         log.info("Running mechanistic agent-based model")
-        trajs = sim.run_abm()  # args.samples)
+        trajs = sim.run_abm(samples=args.samples)
+        sim.t.dump("{0}.t".format(args.output))
+        trajs.dump("{0}.trajs".format(args.output))
+    if args.kappa:
+        sim = SEIRxUD(**params)
+        log.info("Running Kappa simulation")
+        trajs = sim.run_kappa(samples=args.samples)
         sim.t.dump("{0}.t".format(args.output))
         trajs.dump("{0}.trajs".format(args.output))
     if args.plot:
