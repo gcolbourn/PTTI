@@ -2,9 +2,11 @@
 # It will define inputs used in each policy case used too calculate impact
 
 # Policies are defined by a dict. Examples:
-Policy_1 = dict(Economy_Open_Case_Number=1000, Hire_Interval=90, Trace=True, Test=False)
-Policy_2 = dict(Economy_Open_Case_Number=1000, Hire_Interval=90, Trace=True, Test=True, Pop_test_pct='Adaptive')
-Policy_3 = dict(Economy_Open_Case_Number=1000, Hire_Interval=90, Trace=True, Test=True, Pop_test_pct=1)
+Test_Policy_1 = dict(Economy_Open_Case_Number=1000, Hire_Interval=90, Trace=True, Test=False)
+Test_Policy_2 = dict(Economy_Open_Case_Number=1000, Hire_Interval=90, Trace=True, Test=True, Pop_test_pct='Adaptive')
+Test_Policy_3 = dict(Economy_Open_Case_Number=1000, Hire_Interval=90, Trace=True, Test=True)
+
+# Pop_test_pct is fractino of population tested each day.
 
 # Across Cases: Deaths, direct cost of hospitalization/ICU, economic cost of sickness, hospitalizations and deaths.
 # Quarantine costs?

@@ -11,23 +11,32 @@ UK_Shutdown_GDP_Penalty = 1  # How much economic damage is happening during shut
 # Tracing alone, universal testing + tracing, or partial / scaled testing + tracing.
 # In each case, we need to compute costs from
 
+# Disease Parameters:
+Pct_Symptomatic = 0.5
+
 # Fixed Tracing costs
 
 # Variable Tracing Costs
+Phone_Credit_Costs = 5 # Daily, per person.
+
 Max_Number_of_Tracers = UK_Population/1000
 Cost_per_Tracer = 80  # Daily
+# We need to add the *daily* cost for other factors
+Cost_per_Tracer += Phone_Credit_Costs # Add phone costs
+
+
 Number_of_Tracing_Supervisors = Max_Number_of_Tracers/50
 Cost_per_Supervisor = 160  # Daily
 Number_of_Tracing_Team_Leads = 343
 Cost_per_Team_Lead = 300  # Daily
 
-Tracers_Day_N = Max_Number_of_Tracers # This can vary. Set to max for now.
-# We assume supervisors and team leads are empleyed the entire time we do this, regardless of varying number of tracers.
+Tracers_Day_N = Max_Number_of_Tracers # This can vary. Set to max for now. (This is overridden in the econ model now.)
+# We assume supervisors and team leads are employed the entire time we do this, regardless of varying number of tracers.
 
 Phone_Credits_Day_N =  Tracers_Day_N + Number_of_Tracing_Supervisors + Number_of_Tracing_Team_Leads
-Phone_Credit_Costs = 5 # Daily, per person.
 
 Smart_Phones = Max_Number_of_Tracers/10 # For any tracers without phones. Fairly minimal percentage.
+Tracers_Per_Infected_Person = 58.0/8 # See report - 58 hours, tracers work 8 hour days.
 
 Rural_Pct = 0.17
 Daily_Travel_Cost = 10
