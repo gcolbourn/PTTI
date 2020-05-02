@@ -38,7 +38,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     params = {
-        "N": args.N, "I0": float(args.I)/args.N,
+        "N": args.N, "I": args.I,
         "c": args.c, "beta": args.beta, "alpha": args.alpha, "gamma": args.gamma,
         "theta": args.theta, "eta": args.eta, "chi": args.chi,
         "tmax": args.tmax, "tsteps": args.steps, "gridsize": args.gridsize,
@@ -50,6 +50,8 @@ if __name__ == '__main__':
             ydata = yaml.load(fp)
             params.update(ydata.get("sim", {}))
             params["output"] = ydata.get("meta", {}).get("output", args.output)
+
+    params["I0"] = float(params["I"])/params["N"]
 
     plot_r_eta.plot(**params)
     plot_r_theta.plot(**params)
