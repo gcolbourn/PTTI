@@ -1,0 +1,13 @@
+meta:
+  output: lockdown
+sim:
+  N: 67000000
+  I: 1.0
+  c: 3.9
+  beta: 0.033
+  alpha: 0.2
+  gamma: 0.1429
+  theta: 0.1429
+  kappa: 0.0714
+  eta: 0.1
+  chi: 0.25
