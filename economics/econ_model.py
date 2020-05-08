@@ -1,87 +1,106 @@
 from economics.inputs import *
-from economics.policies import *
+# from economics.policies import *
 from math import ceil, exp
-# Right now, output['I'] is cumulative infections. TODO: Change this! (Pre-transform to that, maybe? Or fix logic?)
+import yaml
 
-def test_output(max, growthrate, max_growth_day, days):
-    import random
-    model_output = dict()
-    model_output['Days'] = days
-    model_output['I'] = [max/(1+exp(-1*growthrate*(x-max_growth_day+10)) ) for x in range(0, days)]
-    model_output['Total Deaths'] = model_output['I'][days-1]*0.01
-    model_output['Tests'] = [random.randrange(1,5)*(days-x) for x in range(0, days)]
-    return(model_output)
+Test = True
+# Run model for testing:
+if Test:
+    from SEIRT.seirct_ode import SEIRCTODEMem
+    Test_YAML = r'economics\ptti-discussion.yaml'
+    with open(Test_YAML) as file:
+        scenario = yaml.load(file, Loader=yaml.FullLoader)
+
+    Model = SEIRCTODEMem()
+    model_outputs = Model.run(t0=0, tsteps=365, tmax=365, state=Model.initial_conditions(**scenario['initial']))
 
 
-def econ_outputs(policy, model_output):
+def Econ_Outputs(model_outputs, YAML_file):
+    with open(YAML_file) as file:
+        scenario = yaml.load(file, Loader=yaml.FullLoader)
+
     Output = dict()
-    Output['policy'] = policy
-    Output['model_output'] = model_output
+    Output['policy'] = scenario
+    Output['model_output'] = model_outputs
+    Output['timesteps'] = Output['model_output'][0]
+    Days = len(model_outputs[0]) # Total number of days modeled
+    Output['compartments'] = model_outputs[1]
 
-    Days = model_output['Days'] # Total number of days modeled
     Costs = 0
 
-    Trace_Outputs = dict()
-    if policy['Trace']:
-        Sick_Next = model_output['I'].copy()
-        Sick_Next.insert(0, 0)
-        Sick_Next = Sick_Next[0:-1] #This is offset by one to take the difference.
-        # NOTE: Model output in compartment I is total sick, new_sick is daily difference, i.e. new people to trace.
-        New_Sick = [a - b for a, b in zip(model_output['I'], Sick_Next)]
+    Output['econ'] = dict()
+    Output['parameters'] = dict()
+    Output['variables'] = dict()
+    # GEt parameter values, which can change over time due to interventions.
+    for var in scenario['parameters'].keys():
+        Output['variables'][var] = [scenario['parameters'][var] for d in range(Days)] # Initial value.
+    for intervention in scenario['interventions']:
+        for var in intervention['parameters']:
+            Output['variables'][var][intervention['time']:] = [intervention['parameters'][var] for i in range(Days-int(intervention['time']))]
+
+    Output['I'] = [a + b for a, b in zip(Output['compartments'][:, 4], Output['compartments'][:,5])]
 
 
-        if not policy['Test']:
-            New_Sick = [num * Pct_Symptomatic for num in New_Sick]  # Only Sick people, since others aren't known to trace. (Now 50%)
-            # This assumes we find all symptomatic people. TODO - We should fix that.
+    Output['econ']['trace'] = [0 for d in range(Days)] # Number of people that must be traced.
+    for d in range(Days):
+        if Output['variables']['theta'][d] > 0:
+            Output['econ']['trace'][d] = Output['variables']['c'][d] * Output['variables']['theta'][d] / (
+                Output['variables']['gamma'][d] + Output['variables']['theta'][d] *
+                (1 + Output['variables']['eta'][d] * Output['variables']['chi'][d]) ) * Output['compartments'][d, 6] #IU
+    # if True: #policy['Trace']: # Currently, we always assumes we pay to trace,
 
-        # Now we need to find the number of tracers needed in each window.
-        Tracers_Needed_Per_Hiring_Window = list()
-        Period_Lengths = list()
-        Windows = ceil(Days/policy['Hire_Interval'])
-        for i in range(0, Windows):
-            Period_Start = i*policy['Hire_Interval']
-            Period_End = min((i+1)*policy['Hire_Interval'], Days)
-            Period_Lengths.append(Period_End-Period_Start) #The last period might be shorter.
-            Tracers_Needed_Per_Hiring_Window.append(max(New_Sick[Period_Start: Period_End])*Tracers_Per_Infected_Person)
-            # We assume that each day, all new infected people have all contacts traced by a team.
-            # This means to keep tracing on a one-day lag, i.e. by end of the next day,  we need enough people to trace
-            # the maximum expected number in any one day during that period.
-        Max_Tracers = max(Tracers_Needed_Per_Hiring_Window)
+    To_Trace = Output['econ']['trace']
+
+    # Now we need to find the number of tracers needed in each window.
+    Tracers_Needed_Per_Hiring_Window = []
+    Period_Lengths = []
+    Windows = ceil(Days/Hire_Interval)
+    for i in range(0, Windows):
+        Period_Start = i*Hire_Interval
+        Period_End = min((i+1)*Hire_Interval, Days)
+        Period_Lengths.append(Period_End-Period_Start) #The last period might be shorter.
+        Time_to_Trace =2.8/8.0 # 2.8 hours to trace each contact
+        Tracers_This_Period = max(To_Trace[Period_Start:Period_End]) * Time_to_Trace
+        Tracers_Needed_Per_Hiring_Window.append(Tracers_This_Period)
+        # We assume that each day, all new infected people have all contacts traced by a team.
+        # This means to keep tracing on a one-day lag, i.e. by end of the next day,  we need enough people to trace
+        # the maximum expected number in any one day during that period.
+    Max_Tracers = max(Tracers_Needed_Per_Hiring_Window)
         #elif policy['Pop_test_pct'] <= 1:
         #else:
         #    raise NotImplementedError
 
         # The above now does a bunch of checking to get the numbers for tracers needed. Now we take the sum.
-        Total_Max_Tracing_Workers = Number_of_Tracing_Supervisors + Number_of_Tracing_Team_Leads + Max_Tracers
-        Recruitment_Costs = Hiring_Cost * Total_Max_Tracing_Workers
+    Total_Max_Tracing_Workers = Number_of_Tracing_Supervisors + Number_of_Tracing_Team_Leads + Max_Tracers
+    Recruitment_Costs = Hiring_Cost * Total_Max_Tracing_Workers
 
+    Tracers_fixed_cost = (Number_of_Tracing_Supervisors * Cost_per_Supervisor * Days) + \
+                         (Number_of_Tracing_Team_Leads * Cost_per_Team_Lead * Days) + \
+                         Recruitment_Costs + Tracer_Training_Course_Cost + \
+                         Cost_Per_Extra_Phones_for_Workers * Total_Max_Tracing_Workers
 
-        Tracers_fixed_cost = (Number_of_Tracing_Supervisors * Cost_per_Supervisor * Days) + \
-                             (Number_of_Tracing_Team_Leads * Cost_per_Team_Lead * Days) + \
-                             Recruitment_Costs + Tracer_Training_Course_Cost + \
-                             Cost_Per_Extra_Phones_for_Workers * Total_Max_Tracing_Workers
+    Costs += Tracers_fixed_cost
 
-        Costs += Tracers_fixed_cost
+    Supervisor_Travel_costs = Daily_Travel_Cost * (Number_of_Tracing_Supervisors + Number_of_Tracing_Team_Leads) * \
+        sum(Period_Lengths)
 
-        Supervisor_Travel_costs = Daily_Travel_Cost * (Number_of_Tracing_Supervisors + Number_of_Tracing_Team_Leads) * \
-            sum(Period_Lengths)
+    Tracer_Days_Needed = sum([(a * b) for a, b in zip(Tracers_Needed_Per_Hiring_Window, Period_Lengths)])
+    Tracing_Worker_Travel_Costs = Daily_Travel_Cost * Rural_Pct  # Rural Tracers Travel Costs
+    Tracers_cost = (Cost_per_Tracer + Tracing_Worker_Travel_Costs) * Tracer_Days_Needed + Supervisor_Travel_costs
 
-        Tracer_Days_Needed = sum([(a * b) for a, b in zip(Tracers_Needed_Per_Hiring_Window, Period_Lengths)])
-        Tracing_Worker_Travel_Costs = Daily_Travel_Cost * Rural_Pct  # Rural Tracers Travel Costs
-        Tracers_cost = (Cost_per_Tracer + Tracing_Worker_Travel_Costs) * Tracer_Days_Needed
+    Costs += Tracers_cost
 
-        Costs += Tracers_cost
+    Costs += Tracing_Daily_Public_Communications_Costs * Days
 
-        Costs += Tracing_Daily_Public_Communications_Costs * Days
+    # That is all costs from the original cost spreadsheet for Tracing.
 
-        # That is all costs from the original cost spreadsheet for Tracing.
+    Trace_Outputs=dict()
+    Trace_Outputs['Tracers_Needed_Per_Hiring_Window'] = Tracers_Needed_Per_Hiring_Window
+    Trace_Outputs['Period_Lengths'] = Period_Lengths
+    Trace_Outputs['Tracers_fixed_cost'] = Tracers_fixed_cost
+    Trace_Outputs['Tracers_cost'] = Tracers_cost
 
-        Trace_Outputs=dict()
-        Trace_Outputs['Tracers_Needed_Per_Hiring_Window'] = Tracers_Needed_Per_Hiring_Window
-        Trace_Outputs['Period_Lengths'] = Period_Lengths
-        Trace_Outputs['Tracers_fixed_cost'] = Tracers_fixed_cost
-        Trace_Outputs['Tracers_cost'] = Tracers_cost
-
+    Test = False
     Test_Outputs = dict()
     if policy['Test']:
         Testing_Costs = 0 # We will add to this.
@@ -137,7 +156,9 @@ def econ_outputs(policy, model_output):
             Testing_Costs += Daily_Lab_Workers * Lab_Tech_Salary
             Testing_Costs += Staff_Training_Cost * (Daily_Lab_Workers + Supervisors) # Once Per Period
 
-        Testing_Costs += sum(Daily_tests)*Cost_Per_PCR_Test
+            Testing_Costs += Machines_In_Window * Curr_Period_Days * PCR_Machine_Daily_Maintenance
+
+        Testing_Costs += sum(Daily_tests)*Cost_Per_PCR_Test # Cost for the actual tests.
 
 
         Test_Outputs = dict()
@@ -153,9 +174,9 @@ def econ_outputs(policy, model_output):
 
     return Output  #  What else is useful to graph / etc?
 
-
-test_output_0 = test_output(900, 0.25, 30, 110)  # Good enough for a basic test.
-
-from economics.policies import Test_Policy_2
-
-econ_outputs(Test_Policy_2, test_output_0)
+#
+# test_output_0 = test_output(900, 0.25, 30, 110)  # Good enough for a basic test.
+#
+# from economics.policies import Test_Policy_2
+#
+# econ_outputs(Test_Policy_2, test_output_0)

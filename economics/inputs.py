@@ -12,9 +12,11 @@ UK_Shutdown_GDP_Penalty = 1  # How much economic damage is happening during shut
 # In each case, we need to compute costs from
 
 # Disease Parameters:
-Pct_Symptomatic = 0.5
+#Pct_Symptomatic = 0.5
 
-# Fixed Tracing costs
+Hire_Interval = 90
+
+
 
 # Variable Tracing Costs
 Phone_Credit_Costs = 5 # Daily, per person.
