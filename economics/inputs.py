@@ -13,8 +13,9 @@ UK_Shutdown_GDP_Penalty = 1  # How much economic damage is happening during shut
 
 # Disease Parameters:
 #Pct_Symptomatic = 0.5
+Time_to_Trace = 2.8 / 8.0  # 2.8 hours to trace each contact
 
-Hire_Interval = 90
+# Hire_Interval = 90 # Now Unused
 
 
 
